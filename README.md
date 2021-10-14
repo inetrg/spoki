@@ -148,24 +148,24 @@ $ make update
 ### Running the Malware Tools
 
 There are four tools:
-1. `assemble` reads the Spoki logs and build handshakes and phases.
-2. `mwfk` reads the events from a Kafka topic, filters those events that include "wget" or "curl" in their payload, and writes them to a new topic.
+1. `assemble` reads Spoki logs and assembles handshakes and phases.
+2. `mwfk` reads assembled events from a Kafka topic, filters them, and forwards those that include "wget" or "curl" in their payload to a new topic.
 3. `mwck` reads the filtered events from Kafka, extracts the URLs, and writes the info to a new topic.
 4. `mwdk` reads the cleaned events and downloads whatever it finds behind the URLs.
 Finally, `mwkr` can reset the topics in the local Kafka instance.
 
 These tools run continuously in parallel. `assemble` requires a few arguments for configuration:
-- The data and time of the logs to start with. The Spoki logs contain a timestamp in their name. If you already have logs, you can check those. The time is in UTC, usually `date` will tell you the current time in the shell.
-- `-d` sets a tag. This tag needs to match the tag in the log files. And "consumer" tag of `mwfk`. The provided configuration file uses `test`.
-- `--kafka` and `--csv` make the program write to Kafka and ingest CSV logs.
-- The final argument is the folder that contains the logs.
-Assemble has quite the verbose output about what it is doing. This includes what files it tries to access, when it goes to sleep to wait for more data, etc. Don't be surprised if it quickly fills your screen.
+- The data and time of the logs to start with. The Spoki logs contain a date and hour in their name. If you already have logs, you can check those. The time is in UTC, usually `date` will tell you the current time in the shell.
+- `-d` sets a tag. This tag needs to match the tag in the log files as well as the "consumer" tag of `mwfk`. The provided configuration file uses `test` as a tag.
+- `--kafka` and `--csv` configure the program ingest CSV logs and to write to Kafka.
+- The final (positional) argument is the folder that contains the logs.
+`assemble` has quite the verbose output such as the files it tries to access, when it goes to sleep, etc. Don't be surprised if it quickly fills your screen.
 
-Both, `mwfk` and `mwck` need arguments for the tag to read from and write to. In this case this can simply be `test` as well. These are only tags to adapt the topic names.
+Both, `mwfk` and `mwck` need arguments for the tag to read from and write to. In this case this can simply be `test` as well. These are only tags to adapt the topic names. Expect little output from `mwfk`. `mwck` prints the URLs it finds alongside a bit of metadata.
 
-`mwdk` needs a tag to read from and produces a variety of files--when data makes it through the pipeline. An `activity` contains logs for all discovered malware names. The folder `malware` collects actually downloaded will contain subfolders with the downloaded data, using the hashes as names. Each of those folders contains the downloaded data as `malware.bin` and a compressed log file when those downloads happened. Since this program creates new folders, we suggest running it inside a separate folder, e.g. `data`.
+`mwdk` needs a tag to read from and produces a variety of files--when data makes it through the pipeline. An `activity` folder contains logs for all discovered malware names. The folder `malware` collects the downloads sorted into subfolders that use the hashes of the downloaded data. Each of those folders contains the data named `malware.bin` and a compressed log file with meta data. Since this program creates new folders, we suggest running it inside a separate folder, e.g. `malware/data`.
 
-(Don't forget to activate the virtual environment in each tab/terminal that runs these tools: `source envs/bin/activate`.)
+(Don't forget to activate the virtual environment in each tab/terminal that runs one of the tools: `source envs/bin/activate`.)
 
 ```
 $ assemble -s 2021-08-16 -H 12 -d test --kafka --csv ../logs
@@ -183,7 +183,7 @@ The malware tools contain an additional script to probe Spoki with a two-phase e
 
 The script blocks until it receives a reply from Spoki. When finished it should print DONE on the screen.
 
-While interaction with Spoki is instant it does not flush the write buffer regularly and it might take a bit to write the logs to disk. You can check that the events show up in the log, e.g., by grep'ing for the start of the sequence number the tool uses for the packets. `12981`. The log that contains the events matches the pattern `YYYY-MM-DD.HH:00:00.TAG.spoki.tcp.raw.TIMESTAMP.csv`. Here is an example from my local setup (with an added header):
+While interaction with Spoki is instant Spoki does not flush the write buffer regularly and it might take a bit to write the logs to disk. You can check that the events show up in the log, e.g., by grep'ing for the start of the sequence number the tool uses for the packets. `12981`. The log that contains the events matches the pattern `YYYY-MM-DD.HH:00:00.TAG.spoki.tcp.raw.TIMESTAMP.csv`. Here is an example from my local setup (with an added header):
 
 ```
 $ cat 2021-10-13.14:00:00.test.spoki.tcp.raw.1634133600.csv | grep 12981
