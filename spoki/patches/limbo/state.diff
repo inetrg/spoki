@@ -1,0 +1,25 @@
+diff --git a/src/state.cpp b/src/state.cpp
+index a88a218..53f8a1c 100644
+--- a/src/state.cpp
++++ b/src/state.cpp
+@@ -115,14 +115,20 @@ void local::add_packet(libtrace_packet_t *packet) {
+       auto ip_id = ntohs(static_cast<uint16_t>(ip_hdr->ip_id));
+       auto tp = cs::to_time_point(trace_get_timeval(packet));
+       auto saddr = caf::ipv4_address::from_bits(ip_hdr->ip_src.s_addr);
++      // We trust that the multicast socket gives us the correct packets.
++      /*
+       // Sanity check source address.
+       if (network.contains(saddr) || filter.count(saddr) > 0)
+         return;
++      */
+       auto daddr = caf::ipv4_address::from_bits(ip_hdr->ip_dst.s_addr);
++      // We trust that the multicast socket gives us the correct packets.
++      /*
+       // Sanity check destination address.
+       if (!network.contains(daddr) || filter.count(daddr) > 0
+           || daddr.is_multicast() || daddr.is_loopback())
+         return;
++      */
+       auto probe_data = make_event(packet, saddr, daddr);
+       if (!probe_data)
+         break;

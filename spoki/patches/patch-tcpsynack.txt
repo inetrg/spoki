@@ -1,0 +1,341 @@
+Index: scamper/scamper.1
+===================================================================
+RCS file: /home/mjl/cvsroot/scamper/scamper/scamper.1,v
+retrieving revision 1.75
+diff -u -p -r1.75 scamper.1
+--- scamper/scamper.1	13 Jan 2019 07:09:53 -0000	1.75
++++ scamper/scamper.1	2 Apr 2019 21:30:15 -0000
+@@ -420,6 +420,7 @@ options are available:
+ ping
+ .Bk -words
+ .Op Fl R
++.Op Fl A Ar tcp-ack
+ .Op Fl B Ar payload
+ .Op Fl c Ar probecount
+ .Op Fl C Ar icmp-sum
+@@ -440,6 +441,8 @@ ping
+ .Op Fl z Ar tos
+ .Ek
+ .Bl -tag -width Ds
++.It Fl A Ar tcp-ack
++specifies the number to use in the acknowledgement field of the TCP header.
+ .It Fl B Ar payload
+ specifies, in a hexadecimal string, the payload to include in each probe.
+ .It Fl c Ar probecount
+@@ -494,8 +497,8 @@ specified.  By default, each probe's byt
+ .It Fl P Ar method
+ specifies the type of ping packets to send.
+ By default, ICMP echo requests are sent.
+-Choices are: icmp-echo, icmp-time, tcp-syn, tcp-ack, tcp-ack-sport, udp,
+-and udp-dport.
++Choices are: icmp-echo, icmp-time, tcp-syn, tcp-ack, tcp-ack-sport,
++tcp-synack, udp, and udp-dport.
+ .It Fl R
+ specifies that the record route IP option should be used.
+ .It Fl s Ar size
+Index: scamper/ping/scamper_ping.c
+===================================================================
+RCS file: /home/mjl/cvsroot/scamper/scamper/ping/scamper_ping.c,v
+retrieving revision 1.33
+diff -u -p -r1.33 scamper_ping.c
+--- scamper/ping/scamper_ping.c	17 Sep 2016 05:52:37 -0000	1.33
++++ scamper/ping/scamper_ping.c	2 Apr 2019 21:30:15 -0000
+@@ -49,6 +49,7 @@ char *scamper_ping_method2str(const scam
+     "udp-dport",
+     "icmp-time",
+     "tcp-syn",
++    "tcp-synack",
+   };
+ 
+   if(ping->probe_method > sizeof(m) / sizeof(char *))
+Index: scamper/ping/scamper_ping.h
+===================================================================
+RCS file: /home/mjl/cvsroot/scamper/scamper/ping/scamper_ping.h,v
+retrieving revision 1.49
+diff -u -p -r1.49 scamper_ping.h
+--- scamper/ping/scamper_ping.h	12 Jan 2015 05:28:10 -0000	1.49
++++ scamper/ping/scamper_ping.h	2 Apr 2019 21:30:15 -0000
+@@ -75,7 +75,8 @@
+ #define SCAMPER_PING_METHOD_IS_TCP(ping) (                    \
+  ((ping)->probe_method == SCAMPER_PING_METHOD_TCP_ACK ||      \
+   (ping)->probe_method == SCAMPER_PING_METHOD_TCP_ACK_SPORT || \
+-  (ping)->probe_method == SCAMPER_PING_METHOD_TCP_SYN))
++  (ping)->probe_method == SCAMPER_PING_METHOD_TCP_SYN || \
++  (ping)->probe_method == SCAMPER_PING_METHOD_TCP_SYNACK))
+ 
+ #define SCAMPER_PING_METHOD_IS_UDP(ping) (                \
+  ((ping)->probe_method == SCAMPER_PING_METHOD_UDP ||      \
+@@ -113,6 +114,7 @@
+ #define SCAMPER_PING_METHOD_UDP_DPORT     0x04
+ #define SCAMPER_PING_METHOD_ICMP_TIME     0x05
+ #define SCAMPER_PING_METHOD_TCP_SYN       0x06
++#define SCAMPER_PING_METHOD_TCP_SYNACK    0x07
+ 
+ #define SCAMPER_PING_FLAG_V4RR            0x01 /* -R: IPv4 record route */
+ #define SCAMPER_PING_FLAG_SPOOF           0x02 /* -O spoof: spoof src */
+@@ -260,6 +262,7 @@ typedef struct scamper_ping
+   uint16_t               probe_sport;   /* -F */
+   uint16_t               probe_dport;   /* -d */
+   uint16_t               probe_icmpsum; /* -C */
++  uint32_t               probe_tcpack;  /* -A */
+   uint16_t               reply_count;   /* -o */
+   uint16_t               reply_pmtu;    /* -M */
+   scamper_ping_v4ts_t   *probe_tsps;    /* -T */
+Index: scamper/ping/scamper_ping_do.c
+===================================================================
+RCS file: /home/mjl/cvsroot/scamper/scamper/ping/scamper_ping_do.c,v
+retrieving revision 1.150
+diff -u -p -r1.150 scamper_ping_do.c
+--- scamper/ping/scamper_ping_do.c	3 Dec 2017 09:38:27 -0000	1.150
++++ scamper/ping/scamper_ping_do.c	2 Apr 2019 21:30:15 -0000
+@@ -148,11 +148,13 @@ typedef struct ping_state
+ #define PING_OPT_PROBETOS     17
+ #define PING_OPT_REPLYPMTU    18
+ #define PING_OPT_PROBETIMEOUT 19
++#define PING_OPT_PROBETCPACK  20
+ 
+ #define PING_MODE_PROBE       0
+ #define PING_MODE_PTB         1
+ 
+ static const scamper_option_in_t opts[] = {
++  {'A', NULL, PING_OPT_PROBETCPACK,  SCAMPER_OPTION_TYPE_NUM},
+   {'B', NULL, PING_OPT_PAYLOAD,      SCAMPER_OPTION_TYPE_STR},
+   {'c', NULL, PING_OPT_PROBECOUNT,   SCAMPER_OPTION_TYPE_NUM},
+   {'C', NULL, PING_OPT_PROBEICMPSUM, SCAMPER_OPTION_TYPE_STR},
+@@ -178,11 +180,12 @@ static const int opts_cnt = SCAMPER_OPTI
+ 
+ const char *scamper_do_ping_usage(void)
+ {
+-  return "ping [-R] [-B payload] [-c count] [-C icmp-sum] [-d dport]\n"
+-         "     [-F sport] [-i wait-probe] [-m ttl] [-M pmtu]\n"
+-         "     [-o reply-count] [-O option] [-p pattern] [-P method]\n"
+-         "     [-U userid] [-s probe-size] [-S srcaddr]\n"
+-         "     [-T timestamp-option] [-W timeout] [-z tos]";
++  return
++    "ping [-R] [-A tcp-ack] [-B payload] [-c count] [-C icmp-sum]\n"
++    "     [-d dport] [-F sport] [-i wait-probe] [-m ttl] [-M pmtu]\n"
++    "     [-o reply-count] [-O option] [-p pattern] [-P method]\n"
++    "     [-U userid] [-s probe-size] [-S srcaddr]\n"
++    "     [-T timestamp-option] [-W timeout] [-z tos]";
+ }
+ 
+ static scamper_ping_t *ping_getdata(const scamper_task_t *task)
+@@ -378,7 +381,8 @@ static void do_ping_handle_dl(scamper_ta
+ 	return;
+ 
+       if(ping->probe_method == SCAMPER_PING_METHOD_TCP_ACK ||
+-	 ping->probe_method == SCAMPER_PING_METHOD_TCP_SYN)
++	 ping->probe_method == SCAMPER_PING_METHOD_TCP_SYN ||
++	 ping->probe_method == SCAMPER_PING_METHOD_TCP_SYNACK)
+ 	{
+ 	  /* we send a series of probes using the same src port */
+ 	  if(dl->dl_tcp_dport != ping->probe_sport)
+@@ -858,10 +862,11 @@ static int ping_state_payload(scamper_pi
+       off += 12;
+     }
+ 
+-  if((ping->flags & SCAMPER_PING_FLAG_SPOOF) != 0)
++  if((ping->flags & SCAMPER_PING_FLAG_SPOOF) != 0 &&
++     ping->probe_method != SCAMPER_PING_METHOD_TCP_SYNACK)
+     {
+-      /* get the source IP address to embed in the probe */
+       assert(state->payload_len >= al);
++      /* get the source IP address to embed in the probe */
+       if((src = scamper_getsrc(ping->dst, 0)) == NULL)
+ 	return -1;
+       memcpy(state->payload+off, src->addr, al);
+@@ -962,8 +967,12 @@ static int ping_state_alloc(scamper_task
+ 
+   if(SCAMPER_PING_METHOD_IS_TCP(ping))
+     {
+-      if(random_u32(&state->tcp_seq) != 0 || random_u32(&state->tcp_ack) != 0)
++      if(random_u32(&state->tcp_seq) != 0)
++	return -1;
++
++      if(ping->probe_tcpack == 0 && random_u32(&ping->probe_tcpack) != 0)
+ 	return -1;
++      state->tcp_ack = ping->probe_tcpack;
+     }
+ 
+   return 0;
+@@ -1123,6 +1132,12 @@ static void do_ping_probe(scamper_task_t
+ 	      probe.pr_tcp_seq   = state->tcp_seq;
+ 	      probe.pr_tcp_ack   = state->tcp_ack;
+ 	    }
++	  else if(ping->probe_method == SCAMPER_PING_METHOD_TCP_SYNACK)
++	    {
++	      probe.pr_tcp_flags = TH_SYN | TH_ACK;
++	      probe.pr_tcp_seq   = state->tcp_seq;
++	      probe.pr_tcp_ack   = state->tcp_ack;
++	    }
+ 	}
+       else if(SCAMPER_PING_METHOD_IS_UDP(ping))
+ 	{
+@@ -1244,6 +1259,11 @@ static int ping_arg_param_validate(int o
+ 
+   switch(optid)
+     {
++    case PING_OPT_PROBETCPACK:
++      if(string_tolong(param, &tmp) == 1 || tmp < 0 || tmp > TCP_MAX_SEQNUM)
++	goto err;
++      break;
++
+     case PING_OPT_PAYLOAD:
+       for(i=0; param[i] != '\0'; i++)
+ 	if(ishex(param[i]) == 0)
+@@ -1302,6 +1322,8 @@ static int ping_arg_param_validate(int o
+ 	tmp = SCAMPER_PING_METHOD_ICMP_TIME;
+       else if(strcasecmp(param, "tcp-syn") == 0)
+ 	tmp = SCAMPER_PING_METHOD_TCP_SYN;
++      else if(strcasecmp(param, "tcp-synack") == 0)
++	tmp = SCAMPER_PING_METHOD_TCP_SYNACK;
+       else
+ 	goto err;
+       break;
+@@ -1504,6 +1526,7 @@ void *scamper_do_ping_alloc(char *str)
+   uint16_t  probe_size    = 0; /* unset */
+   uint16_t  pattern_len   = 0;
+   uint16_t  probe_icmpsum = 0;
++  uint32_t  probe_tcpack  = 0;
+   uint8_t   pattern[SCAMPER_DO_PING_PATTERN_MAX/2];
+   uint16_t  payload_len   = 0;
+   uint8_t  *payload       = NULL;
+@@ -1545,6 +1568,10 @@ void *scamper_do_ping_alloc(char *str)
+ 
+       switch(opt->id)
+ 	{
++	case PING_OPT_PROBETCPACK:
++	  probe_tcpack = (uint32_t)tmp;
++	  break;
++
+ 	case PING_OPT_PAYLOAD:
+ 	  payload_len = (uint16_t)tmp;
+ 	  if(payload_len == 0 || (payload = malloc_zero(payload_len)) == NULL)
+@@ -1708,13 +1735,15 @@ void *scamper_do_ping_alloc(char *str)
+ 	cmps += 40;
+       else if(flags & SCAMPER_PING_FLAG_TSANDADDR)
+ 	cmps += 36;
+-      if(flags & SCAMPER_PING_FLAG_SPOOF)
++      if((flags & SCAMPER_PING_FLAG_SPOOF) != 0 &&
++	 probe_method != SCAMPER_PING_METHOD_TCP_SYNACK)
+ 	cmps += 4;
+     }
+   else if(ping->dst->type == SCAMPER_ADDR_TYPE_IPV6)
+     {
+       cmps = 40;
+-      if(flags & SCAMPER_PING_FLAG_SPOOF)
++      if((flags & SCAMPER_PING_FLAG_SPOOF) != 0 &&
++	 probe_method != SCAMPER_PING_METHOD_TCP_SYNACK)
+ 	cmps += 16;
+     }
+   else goto err;
+@@ -1840,6 +1869,7 @@ void *scamper_do_ping_alloc(char *str)
+   ping->probe_sport   = probe_sport;
+   ping->probe_dport   = probe_dport;
+   ping->probe_icmpsum = probe_icmpsum;
++  ping->probe_tcpack  = probe_tcpack;
+   ping->reply_count   = reply_count;
+   ping->reply_pmtu    = reply_pmtu;
+   ping->userid        = userid;
+Index: scamper/ping/scamper_ping_json.c
+===================================================================
+RCS file: /home/mjl/cvsroot/scamper/scamper/ping/scamper_ping_json.c,v
+retrieving revision 1.15
+diff -u -p -r1.15 scamper_ping_json.c
+--- scamper/ping/scamper_ping_json.c	12 Jul 2017 07:34:02 -0000	1.15
++++ scamper/ping/scamper_ping_json.c	2 Apr 2019 21:30:15 -0000
+@@ -60,7 +60,7 @@ static char *ping_probe_data(const scamp
+ static char *ping_header(const scamper_ping_t *ping)
+ {
+   static const char *flags[] = {
+-    "v4rr", "spoof", "payload", "tsonly", "tsandaddr", "icmpsum", "dl", "8"
++    "v4rr", "spoof", "payload", "tsonly", "tsandaddr", "icmpsum", "dl", "tbt"
+   };
+   char buf[1024], tmp[512];
+   size_t off = 0;
+@@ -90,6 +90,9 @@ static char *ping_header(const scamper_p
+   if(SCAMPER_PING_METHOD_IS_UDP(ping) || SCAMPER_PING_METHOD_IS_TCP(ping))
+     string_concat(buf, sizeof(buf), &off, ", \"sport\":%u, \"dport\":%u",
+ 		  ping->probe_sport, ping->probe_dport);
++  if(ping->probe_method == SCAMPER_PING_METHOD_TCP_SYNACK)
++    string_concat(buf, sizeof(buf), &off,
++		  ", \"tcp_ack\":%u", ping->probe_tcpack);
+ 
+   if(ping->probe_datalen > 0 && ping->probe_data != NULL)
+     {
+Index: scamper/ping/scamper_ping_warts.c
+===================================================================
+RCS file: /home/mjl/cvsroot/scamper/scamper/ping/scamper_ping_warts.c,v
+retrieving revision 1.16
+diff -u -p -r1.16 scamper_ping_warts.c
+--- scamper/ping/scamper_ping_warts.c	9 Dec 2016 08:42:51 -0000	1.16
++++ scamper/ping/scamper_ping_warts.c	2 Apr 2019 21:30:15 -0000
+@@ -76,6 +76,7 @@ static const char rcsid[] =
+ #define WARTS_PING_REPLY_PMTU     26
+ #define WARTS_PING_PROBE_TIMEOUT  27
+ #define WARTS_PING_PROBE_WAIT_US  28
++#define WARTS_PING_PROBE_TCPACK   29
+ 
+ static const warts_var_t ping_vars[] =
+ {
+@@ -107,6 +108,7 @@ static const warts_var_t ping_vars[] =
+   {WARTS_PING_REPLY_PMTU,     2, -1},
+   {WARTS_PING_PROBE_TIMEOUT,  1, -1},
+   {WARTS_PING_PROBE_WAIT_US,  4, -1},
++  {WARTS_PING_PROBE_TCPACK,   4, -1},
+ };
+ #define ping_vars_mfb WARTS_VAR_MFB(ping_vars)
+ 
+@@ -526,7 +528,8 @@ static void warts_ping_params(const scam
+ 	 (var->id == WARTS_PING_FLAGS         && ping->flags == 0) ||
+ 	 (var->id == WARTS_PING_REPLY_PMTU    && ping->reply_pmtu == 0) ||
+ 	 (var->id == WARTS_PING_PROBE_TIMEOUT && ping->probe_timeout == ping->probe_wait) ||
+-	 (var->id == WARTS_PING_PROBE_WAIT_US && ping->probe_wait_us == 0))
++	 (var->id == WARTS_PING_PROBE_WAIT_US && ping->probe_wait_us == 0) ||
++	 (var->id == WARTS_PING_PROBE_TCPACK  && ping->probe_tcpack == 0))
+ 	{
+ 	  continue;
+ 	}
+@@ -655,6 +658,7 @@ static int warts_ping_params_read(scampe
+     {&ping->reply_pmtu,    (wpr_t)extract_uint16,          NULL},
+     {&ping->probe_timeout, (wpr_t)extract_byte,            NULL},
+     {&ping->probe_wait_us, (wpr_t)extract_uint32,          NULL},
++    {&ping->probe_tcpack,  (wpr_t)extract_uint32,          NULL},
+   };
+   const int handler_cnt = sizeof(handlers)/sizeof(warts_param_reader_t);
+   uint32_t o = *off;
+@@ -709,6 +713,7 @@ static int warts_ping_params_write(const
+     {&ping->reply_pmtu,    (wpw_t)insert_uint16,          NULL},
+     {&ping->probe_timeout, (wpw_t)insert_byte,            NULL},
+     {&ping->probe_wait_us, (wpw_t)insert_uint32,          NULL},
++    {&ping->probe_tcpack,  (wpw_t)insert_uint32,          NULL},
+   };
+ 
+   const int handler_cnt = sizeof(handlers)/sizeof(warts_param_writer_t);
+Index: utils/sc_wartsdump/sc_wartsdump.c
+===================================================================
+RCS file: /home/mjl/cvsroot/scamper/utils/sc_wartsdump/sc_wartsdump.c,v
+retrieving revision 1.217
+diff -u -p -r1.217 sc_wartsdump.c
+--- utils/sc_wartsdump/sc_wartsdump.c	13 Jan 2019 07:05:59 -0000	1.217
++++ utils/sc_wartsdump/sc_wartsdump.c	2 Apr 2019 21:30:15 -0000
+@@ -772,7 +772,7 @@ static void dump_ping_reply(const scampe
+ static void dump_ping(scamper_ping_t *ping)
+ {
+   static const char *flags[] = {
+-    "v4rr", "spoof", "payload", "tsonly", "tsandaddr", "icmpsum", "dl", "8"
++    "v4rr", "spoof", "payload", "tsonly", "tsandaddr", "icmpsum", "dl", "tbt"
+   };
+   scamper_ping_reply_t *reply;
+   char buf[256];
+@@ -836,7 +836,10 @@ static void dump_ping(scamper_ping_t *pi
+     case SCAMPER_PING_METHOD_UDP:
+     case SCAMPER_PING_METHOD_TCP_ACK:
+     case SCAMPER_PING_METHOD_TCP_SYN:
++    case SCAMPER_PING_METHOD_TCP_SYNACK:
+       printf(", sport: %d, dport: %d", ping->probe_sport, ping->probe_dport);
++      if(ping->probe_method == SCAMPER_PING_METHOD_TCP_SYNACK)
++	printf(", ack: %u", ping->probe_tcpack);
+       break;
+ 
+     case SCAMPER_PING_METHOD_TCP_ACK_SPORT:

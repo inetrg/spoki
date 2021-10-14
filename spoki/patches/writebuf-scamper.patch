@@ -1,0 +1,28 @@
+--- scamper/Makefile.am	2015-10-16 22:54:04.000000000 -0700
++++ scamper/Makefile.am	2015-05-13 09:16:12.000000000 -0700
+@@ -11,6 +11,7 @@ lib_LTLIBRARIES = libscamperfile.la
+ libscamperfile_la_LDFLAGS = -version-info 0:0:0
+ 
+ libscamperfile_la_SOURCES = \
++	../mjl_list.c \
+ 	../mjl_splaytree.c \
+ 	../utils.c \
+ 	scamper_file.c \
+@@ -20,6 +21,8 @@ libscamperfile_la_SOURCES = \
+ 	scamper_addr.c \
+ 	scamper_list.c \
+ 	scamper_icmpext.c \
++	scamper_writebuf.c \
++	scamper_linepoll.c \
+ 	trace/scamper_trace.c \
+ 	trace/scamper_trace_warts.c \
+ 	trace/scamper_trace_text.c \
+@@ -139,6 +142,8 @@ include_HEADERS = \
+ 	scamper_addr.h \
+ 	scamper_list.h \
+ 	scamper_icmpext.h \
++	scamper_writebuf.h \
++	scamper_linepoll.h \
+ 	trace/scamper_trace.h \
+ 	ping/scamper_ping.h \
+ 	tracelb/scamper_tracelb.h \

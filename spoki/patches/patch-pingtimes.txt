@@ -1,0 +1,20 @@
+--- scamper/ping/scamper_ping_do.c	2019-07-28 10:42:37.000000000 +0200
++++ scamper/ping/scamper_ping_do.c	2019-11-20 13:22:44.000000000 +0100
+@@ -59,7 +59,7 @@
+ #define SCAMPER_DO_PING_PROBECOUNT_DEF    4
+ #define SCAMPER_DO_PING_PROBECOUNT_MAX    65535
+ 
+-#define SCAMPER_DO_PING_PROBEWAIT_US_MIN  1000
++#define SCAMPER_DO_PING_PROBEWAIT_US_MIN  0
+ #define SCAMPER_DO_PING_PROBEWAIT_DEF     1
+ #define SCAMPER_DO_PING_PROBEWAIT_MAX     20
+
+@@ -93,7 +93,7 @@
+ #define SCAMPER_DO_PING_PATTERN_DEF       0
+ #define SCAMPER_DO_PING_PATTERN_MAX       32
+ 
+-#define SCAMPER_DO_PING_PROBETIMEOUT_MIN  1
++#define SCAMPER_DO_PING_PROBETIMEOUT_MIN  0
+ #define SCAMPER_DO_PING_PROBETIMEOUT_MAX  255
+ 
+ /* the callback functions registered with the ping task */
