@@ -1,0 +1,13 @@
+diff --git a/src/shard.cpp b/src/shard.cpp
+index bab60fa..9504f9a 100644
+--- a/src/shard.cpp
++++ b/src/shard.cpp
+@@ -142,6 +142,8 @@ void shard_state::new_event(caf::ipv4_address addr, observation& ob) {
+   // No cache entry found, this is either a new endpoint, an endpoint we want to
+   // probe again or a probe reply for an endpoint in progress.
+   if (ob.event.is<cs::udp_event>()) {
++    // TODO: Not probing UDP here.
++    return;
+     // Check if we alreasy have an entry in our cache.
+     if (data_udp.contains(addr))
+       return;

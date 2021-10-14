@@ -1,0 +1,15 @@
+Index: scamper/ping/scamper_ping_do.c
+===================================================================
+RCS file: /home/mjl/cvsroot/scamper/scamper/ping/scamper_ping_do.c,v
+retrieving revision 1.153
+diff -u -p -r1.153 scamper_ping_do.c
+--- scamper/ping/scamper_ping_do.c	12 Jul 2019 23:37:57 -0000	1.153
++++ scamper/ping/scamper_ping_do.c	17 Jul 2019 01:28:25 -0000
+@@ -1104,6 +1104,7 @@ static void do_ping_probe(scamper_task_t
+ 	  probe.pr_tcp_sport = ping->probe_sport;
+ 	  probe.pr_tcp_seq   = ping->probe_tcpseq;
+ 	  probe.pr_tcp_ack   = ping->probe_tcpack;
++	  probe.pr_tcp_win   = 65535;
+ 
+ 	  if(ping->probe_method == SCAMPER_PING_METHOD_TCP_ACK)
+ 	    {
