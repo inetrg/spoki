@@ -26,7 +26,7 @@ Located in the folder "malware" is a set of python programs that process the Spo
 
 ### Scripts
 
-This folder contains two scripts to drop outgoing TCP RST,ACK packets. Since you likely don't have a telescope setup your host will respond to incoming SYNs with a RST,ACK and interfere with Spoki. One of the scripts sets an iptables rule to DROP these outgoing packets and the other script deleted the rule.
+This folder contains two scripts to drop outgoing TCP RST,ACK packets. Since you likely don't have a telescope setup your host will respond to incoming SYNs with a RST,ACK and interfere with Spoki. One of the scripts sets an iptables rule to DROP these outgoing packets and the other script deletes the rule.
 
 
 
@@ -37,6 +37,7 @@ Spoki and the its tools create new data. We suggest using the following folder s
 ```
 ./
   logs       # unused
+    example  # example logs
   malware    # malware processing tools
     data     # unused
   README.md  # this readme
@@ -44,24 +45,24 @@ Spoki and the its tools create new data. We suggest using the following folder s
   spoki      # spoki's code
 ```
 
-So far the folders `logs` and `malware/data` are empty. The first of them can be used to collect the Spoki logs and the latter one to collect the malware data.
+So far the folders `logs` and `malware/data` are empty. The first one can be used to collect Spoki logs and the second one to collect the malware data.
 
 ### Requirements
 
-The requirements are listed in the respected `README.md` files, but here is a short overview:
+Detailed requirements are listed in the respected `README.md` files, here is a short overview:
 
 * Linux system (e.g., Ubuntu 20.04)
 * C++ 17 compatible compiler (e.g., gcc 9.3)
 * Python3 >= 3.6 (e.g. Python 3.9)
 * Kafka
 
-Spoki has a few more dependencies. Some of them can be build via the `setup.sh` script located in the `spoki` folder. Others can be installed via the OS dependency manager, see `README.md` of Spoki.
+Spoki has a few more dependencies. A few can be installed via the OS dependency manager, see `README.md` of Spoki. The remaining libraries can build via the `setup.sh` script located in the `spoki` folder. At least scamper must be build this way because we apply a few patches to the code.
 
 The basic steps to start Kafka are outlined in the `README.md` in the `malware` folder.
 
 ### Steps
 
-A complete setup consists of Spoki and four processes for the malware processing steps. An overview of the steps is here:
+A complete setup consists of Spoki and four python programs that process its logs.
 
 1. Build Spoki.
 2. Configure Spoki.
@@ -71,35 +72,41 @@ A complete setup consists of Spoki and four processes for the malware processing
 7. Run the four malware processes.
 8. Probe Spoki.
 
-The setup for Spoki and the malware processing tools can be performed in different orders. We suggest this order since Spoki creates the log files needed by the other tools.
+The python tools can be set up before Spoki as well. There are no direct dependencies aside from the logs produced by Spoki.
+
 
 ## Walkthrough
 
-The complete setup requires quite a few processes. We suggest using `screen` or `tmux` to run all processes if you are on a server.
+The complete setup requires running multiple processes in parallel. We suggest using `screen` or `tmux` to keep an overview.
 
 ### Building Spoki
 
-This requires a few dependencies, see the Spoki `README.md` file.
+Please check the Spoki `README.md` file for details. On Ubuntu 20.04 the following should work:
+
+```
+$ sudo apt install gcc libtool-bin automake libpcap0.8-dev
+$ ./setup.sh
+$ ./configure
+$ make -C build
+```
 
 ### Configuring Spoki
 
-Spoki reads a `caf-application.conf` file from the directory it is started in that contains its config options. The `spoki` folder includes an example file. You will need to adjust the `uri` to match your local setup, likely the address of the interface you point Spoki at.
-
-The readme file contains a shell command to give the Spoki executable permissions to read from the interface without running as root.
+Spoki reads a `caf-application.conf` file from the directory it runs in (see `--long-help` on how to select a specific file). The `spoki` folder includes an example configuration file. You will need to adjust the `uri` to match your local setup, likely the interface to read data from, e.g., `int:eth0`.
 
 Spoki needs a running scamper instance to use for probing. It can be started in a separate tab as follows. Add the IP and port to the TCP probers in the config file.
 ```
 $ sudo ./scamper/scamper/scamper -p 10000 -P 127.0.0.1:11011
 ```
 
-To run Spoki as a normal user you can give it the capabilities to read from the interface as follows:
+To run Spoki as a non-root user (recommended) you can give it the capabilities to read from the interface as follows:
 ```
 $ sudo setcap cap_net_raw,cap_net_admin=eip ./build/tools/spoki
 ```
 
 ### Running Spoki
 
-Now, this should be as simple as `./build/tools/spoki` (executed in the `spoki` folder). Spoki prints a bit of configuration output. Thereafter it prints stats every second that include *requests per second* (rps), *probes per second* (pps, rounded to 100), *queue size* (pending probes). When run on a single address pps mostly stays at 0 and rps should show occasional packets.
+Now, this should be as simple as `./build/tools/spoki` (executed in the `spoki` folder). Spoki prints a bit of configuration output. Thereafter it prints the following stats every second: *requests per second* (rps), *probes per second* (pps, rounded to 100), and a *queue size* (pending probes). When run on a single address pps mostly stays at 0 while rps should show occasional packets.
 
 Information about buffer rotations interleave this output. The buffer sizes can be configured via two options in the collectors category. The example config file uses small values to ensure data is written quickly at low packet rates.
 
@@ -120,7 +127,6 @@ $ bin/zookeeper-server-start.sh config/zookeeper.properties
 # Start the Kafka broker service in another tab.
 $ bin/kafka-server-start.sh config/server.properties
 ```
-
 
 *Note:* These are java tools. On Ubuntu 20.04 java can be installed as follows: `sudo apt install openjdk-11-jdk`.
 
