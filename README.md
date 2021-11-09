@@ -203,7 +203,7 @@ The malware tool chain takes quite a while. It wants to ensure that it doesn't m
 $ assemble -s 2021-10-13 -H 21 -d test --kafka --csv ../logs/example
 ```
 
-`clean` should print a single line with the tool (wget), url (http://141.22.28.35/evil), scanner (141.22.28.35), and port (80). `download` will create a new `activity` folder with a log file for this malware name (`evil.2021.10.csv.gz`) that list the download attempt. If the download was successful, a directory `malware` will contain a folder named after the download hash that contains the download (`malware.bin`) and a compressed log file.
+`clean` should print a single line with the tool (wget), url (http://141.22.28.35/evil), hoster (141.22.28.35), and port (80). `download` will create a new `activity` folder with a log file for this malware name (`evil.2021.10.csv.gz`) that list the download attempt. If the download was successful, a directory `malware` will contain a folder named after the download hash that contains the download (`malware.bin`) and a compressed log file.
 
 **Note** The download part accesses a file on my work computer. It get's multiple request from different IPs each day. I don't check the logs to see where from. Please let me know if I should disable it.
 
