@@ -24,7 +24,11 @@ And the following libraries:
 The `setup.sh` script downloads, builds, and installs them to `./deps`. (*Note:* Scamper will be patched by the setup script.)
 Building the dependencies again requires a range of dependencies that can be installed via the system packet manager:
 
-* GCC or clang
+* gcc or clang
+* cmake
+* make
+* git
+* curl
 * libtool binary
 * automake
 * libpcap (>= 0.8)
@@ -32,7 +36,7 @@ Building the dependencies again requires a range of dependencies that can be ins
 
 Ob Ubuntu you can run:
 ```
-$ sudo apt install gcc libtool-bin automake libpcap0.8-dev
+$ sudo apt install gcc g++ cmake git curl make libtool-bin automake libpcap0.8-dev
 ```
 
 ### Steps
