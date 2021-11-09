@@ -33,10 +33,12 @@ Building the dependencies again requires a range of dependencies that can be ins
 * automake
 * libpcap (>= 0.8)
 * zlib
+* libbison
+* flex
 
 Ob Ubuntu you can run:
 ```
-$ sudo apt install gcc g++ cmake git curl make libtool-bin automake libpcap0.8-dev
+$ sudo apt install gcc g++ cmake git curl make libtool-bin automake libpcap0.8-dev libbison-dev flex
 ```
 
 ### Steps

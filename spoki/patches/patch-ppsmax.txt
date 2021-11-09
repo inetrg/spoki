@@ -1,0 +1,11 @@
+--- scamper-orig/scamper.h	2021-11-09 15:27:15.000000000 +0100
++++ scamper/scamper.h	2021-11-09 15:25:13.000000000 +0100
+@@ -28,7 +28,7 @@
+ 
+ #define SCAMPER_OPTION_PPS_MIN       1
+ #define SCAMPER_OPTION_PPS_DEF       20
+-#define SCAMPER_OPTION_PPS_MAX       10000
++#define SCAMPER_OPTION_PPS_MAX       30000
+ int scamper_option_pps_get(void);
+ int scamper_option_pps_set(const int pps);
+ 

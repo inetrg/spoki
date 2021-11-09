@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 ROOT_DIR=$(pwd)
 
 #SCAMPER_FOLDER=scamper-cvs-20181219
@@ -46,7 +48,7 @@ fi
 INSTALL_PREFIX="${PWD}/deps"
 
 echo "installing to '${INSTALL_PREFIX}'"
-mkdir ${INSTALL_PREFIX}
+mkdir -p ${INSTALL_PREFIX}
 
 echo "Using $cores cores for compilation."
 
@@ -58,7 +60,8 @@ echo "# ------------------------------------------------------------------------
 # git -C actor-framework pull || git clone https://github.com/actor-framework/actor-framework.git
 if cd $ROOT_DIR/actor-framework
 then
-  git pull
+  git fetch
+  git checkout tags/0.18.5
 else
   cd $ROOT_DIR
   git clone https://github.com/actor-framework/actor-framework.git
@@ -74,7 +77,7 @@ cd $ROOT_DIR
 
 echo ""
 echo "# ---------------------------------------------------------------------------- #"
-echo "# -- Building scmaper -------------------------------------------------------- # "
+echo "# -- Building scamper -------------------------------------------------------- # "
 echo "# ---------------------------------------------------------------------------- #"
 if cd $ROOT_DIR/scamper
 then
@@ -88,6 +91,7 @@ else
   # patch -p 0 -d scamper < patches/patch-ping-tcp-win.txt
   patch -p 0 -d scamper < patches/writebuf-scamper.patch
   patch -p 0 -d scamper < patches/patch-pingtimes.txt
+  patch -p 0 -d scamper < patches/patch-ppsmax.txt
   cd scamper
   touch NEWS README AUTHORS ChangeLog
 fi
@@ -162,15 +166,17 @@ echo "# ------------------------------------------------------------------------
 if cd json
 then
   echo "JSON lib already pulled"
+  git fetch
+  git checkout tags/$NLOHMAN_JSON_TAG
 else
   cd $ROOT_DIR
   git clone https://github.com/nlohmann/json.git
+  cd $ROOT_DIR/json
+  git pull
+  git checkout tags/$NLOHMAN_JSON_TAG
 fi
-cd $ROOT_DIR/json
-git pull
-git checkout tags/$NLOHMAN_JSON_TAG
-cd $ROOT_DIR
 
+cd $ROOT_DIR
 
 echo ""
 echo ""
