@@ -29,7 +29,6 @@ Located in the folder "malware" is a set of python programs that process the Spo
 This folder contains two scripts to drop outgoing TCP RST,ACK packets. Since you likely don't have a telescope setup your host will respond to incoming SYNs with a RST,ACK and interfere with Spoki. One of the scripts sets an iptables rule to DROP these outgoing packets and the other script deletes the rule.
 
 
-
 ## Test Setup
 
 Spoki and the its tools create new data. We suggest using the following folder structure:
@@ -156,7 +155,7 @@ There are four tools:
 2. `filter` reads assembled events from a Kafka topic, filters them, and forwards those that include "wget" or "curl" in their payload to a new topic.
 3. `clean` reads the filtered events from Kafka, extracts the URLs, and writes the info to a new topic.
 4. `download` reads the cleaned events and downloads whatever it finds behind the URLs.
-Finally, `reset-topics` can reset the topics in the local Kafka instance.
+Finally, `reset-topics` can reset the topics in the local Kafka instance. For details about the arguments each tool accepts and the intermediate formats, please see `malware/README.md`.
 
 These tools run continuously in parallel. `assemble` requires a few arguments for configuration:
 - The data and time of the logs to start with. The Spoki logs contain a date and hour in their name. If you already have logs, you can check those. The time is in UTC, usually `date` will tell you the current time in the shell.
@@ -181,13 +180,13 @@ $ download -c test
 The script `reset-topics -d test` resets the data in the local Kafka instance for the tag `test`.
 
 
-### Probing Spoki
+### Testing: Probing Spoki and the Malware Tools
 
-The malware tools contain an additional script to probe Spoki with a two-phase event: `test-spoki`. It uses scapy to craft packets and simulate an interaction. You can run it from a separate host and probe the interface Spoki is listening on.
+The malware tools contain an additional script to probe Spoki with a two-phase event: `test-spoki`. It uses scapy to craft packets and simulate an interaction. You can run it from a separate host and probe the interface Spoki is listening on. The only required argument for `test-spoki` is the target host as a positional argument, although the port can be configured using `--port`.
 
 The script blocks until it receives a reply from Spoki. When finished it should print DONE on the screen.
 
-While interaction with Spoki is instant Spoki does not flush the write buffer regularly and it might take a bit to write the logs to disk. You can check that the events show up in the log, e.g., by grep'ing for the start of the sequence number the tool uses for the packets. `12981`. The log that contains the events matches the pattern `YYYY-MM-DD.HH:00:00.TAG.spoki.tcp.raw.TIMESTAMP.csv`. Here is an example from my local setup (with an added header):
+While interaction with Spoki is instant, Spoki does not flush the write buffer regularly and it might take a bit to write the logs to disk. You can check that the events show up in the log, e.g., by grep'ing for the start of the sequence number the tool uses for the packets. `12981`. The log that contains the events matches the pattern `YYYY-MM-DD.HH:00:00.TAG.spoki.tcp.raw.TIMESTAMP.csv`. Here is an example from my local setup (with an added header):
 
 ```
 $ cat 2021-10-13.14:00:00.test.spoki.tcp.raw.1634133600.csv | grep 12981
