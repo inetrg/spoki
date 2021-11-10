@@ -1,1 +1,24 @@
-theme: jekyll-theme-slate
+title: "Security Now!"
+subtitle: "Spoki: A Reactive Network Telescope"
+author: 
+#email: your-email@secnow.net
+description: >- # this means to ignore newlines until "baseurl:"
+  Multiline desc starts here.
+
+baseurl: "" # the subpath of your site, e.g. /blog
+url: "https://odns.secnow.net" # the base hostname & protocol for your site
+
+navbar_list:
+- name: Home
+  link: /
+- name: Source Code
+  link: https://github.com/inetrg/spoki/
+- name: USENIX Security'22 Artifacts
+  link: https://zenodo.org/record/5668294
+- name: Paper
+  link: assets/static/hnkds-qqqrs-22.pdf
+- name: Contact
+  link: /contact
+
+sass:
+  compressed: true

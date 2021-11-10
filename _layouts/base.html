@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <meta name="author" content="{{ author }}">
+
+    <link href={{ "/assets/css/bootstrap.min.css" | relative_url }} rel="stylesheet">
+    <link href={{ "/assets/css/main.css" | relative_url }} rel="stylesheet">
+    <link href={{ "/assets/css/fontawesome.all.min.css" | relative_url }} rel="stylesheet">
+
+   {% if page.datatable %}
+    <link href=https://cdn.datatables.net/1.11.3/css/jquery.dataTables.min.css rel="stylesheet">
+   <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>
+   <script type="text/javascript" src="https:////cdn.datatables.net/1.11.3/js/jquery.dataTables.min.js"></script>
+   {% endif %}
+    
+    <title>{{ title }}</title>
+</head>
+
+<body class="d-flex bg-light">
+    <div class="container p-3 mx-auto">
+        {% include header.html %}
+
+        {{ content }}
+    </div>
+
+    <script src={{ "/assets/js/bootstrap.bundle.min.js" | absolute_url }}></script>
+</body>
+
+</html>

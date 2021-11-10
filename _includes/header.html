@@ -1,0 +1,29 @@
+<div class="row">
+    <header>
+        <div>
+            <h1 class="logo display-6 float-md-start mb-0">SecNow!</h1>
+          {% if site.subtitle != nil %}
+            <h2 class="display-6 mb-0 float-right">{{ site.subtitle }}</h2>
+          {% else %}
+            <nav class="nav nav-masthead justify-content-center float-md-end">
+               {% for node in site.navbar_list %}
+                {% if node.name == page.group %}{% assign active = 'active' %}
+                {% else %}{% assign active = nil %}{% endif %}
+                 <a class="nav-link {{ active }}" href="{{ node.link }}">{{ node.name }}</a>
+               {% endfor %}
+            </nav>
+          {% endif %}
+        </div>
+    </header>
+</div>
+{% if site.subtitle != nil %}
+<div class="row">
+            <nav class="nav nav-masthead justify-content-end float-md-end">
+               {% for node in site.navbar_list %}
+                {% if node.name == page.group %}{% assign active = 'active' %}
+                {% else %}{% assign active = nil %}{% endif %}
+                  <a class="nav-link {{ active }}" href="{{ node.link }}">{{ node.name }}</a>
+               {% endfor %}
+            </nav>
+</div>
+{% endif %}
