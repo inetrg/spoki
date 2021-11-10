@@ -53,7 +53,7 @@ $ make -C build
 
 ## Configuration
 
-Spoki uses a `caf-application.conf` file. Here's the outline for a conf file that would use two scamper instances to probe TCP. The URI for the data source must conform to the libtrace style. As an example, use `int:INTERFACE_NAME` to listen on an interface.
+Spoki uses a `caf-application.conf` file. Here's the outline for a conf file that would use two scamper instances to probe TCP. The URI for the data source must conform to the [libtrace formatting](https://github.com/LibtraceTeam/libtrace/wiki/Supported-Trace-Formats). As an example, use `int:INTERFACE_NAME` to listen on an interface.
 
 ```
 global {
@@ -93,6 +93,13 @@ caf {
   }
 }
 ```
+
+Scamper supports connections via UNIX domain sockets. To enable this, set `probers.unix-domain` to `true` and adjust the prober addresses accordingly. If you run Spoki with ICMP enabled, please specify the probers for ICMP under "probers.icmp" similar to tcp. Spoki probes ICMP targets with ping requests. UDP support is experimental does not work out of the box (the options "probers.service-specific-probes" and "probers.reflect" are related to UDP and as such not useful in the current setup).
+
+For details on the configuration of the underlying actor system please check `--long-help`. These options can be passed as CLI arguments or written in the `caf-application.conf` file, such as the arguments in "caf.logger" in the example file. Interesting options to tune CAF to different setups are "caf.scheduler.policy" which defaults to "stealing" (i.e., a work-stealing algorithm) and "caf.scheduler.max-threads" to limit the number of scheduler threads CAF starts (this defaults to the available cores in the system).
+
+
+## Running
 
 Start Spoki using the `spoki` executable with the conf file in the same folder or pass a specific config file using the `--config-file=PATH` CLI argument.
 
