@@ -29,7 +29,6 @@ Located in the folder "malware" is a set of python programs that process the Spo
 This folder contains two scripts to drop outgoing TCP RST,ACK packets. Since you likely don't have a telescope setup your host will respond to incoming SYNs with a RST,ACK and interfere with Spoki. One of the scripts sets an iptables rule to DROP these outgoing packets and the other script deletes the rule.
 
 
-
 ## Test Setup
 
 Spoki and the its tools create new data. We suggest using the following folder structure:
@@ -52,8 +51,12 @@ So far the folders `logs` and `malware/data` are empty. The first one can be use
 Detailed requirements are listed in the respected `README.md` files, here is a short overview:
 
 * Linux system (e.g., Ubuntu 20.04)
+* git
 * C++ 17 compatible compiler (e.g., gcc 9.3)
-* Python3 >= 3.6 (e.g. Python 3.9)
+* CMake >= 3.5
+* make
+* curl
+* Python3 >= 3.6 (e.g. Python 3.8)
 * Kafka
 
 Spoki has a few more dependencies. A few can be installed via the OS dependency manager, see `README.md` of Spoki. The remaining libraries can build via the `setup.sh` script located in the `spoki` folder. At least scamper must be build this way because we apply a few patches to the code.
@@ -149,41 +152,41 @@ $ make update
 
 There are four tools:
 1. `assemble` reads Spoki logs and assembles handshakes and phases.
-2. `mwfk` reads assembled events from a Kafka topic, filters them, and forwards those that include "wget" or "curl" in their payload to a new topic.
-3. `mwck` reads the filtered events from Kafka, extracts the URLs, and writes the info to a new topic.
-4. `mwdk` reads the cleaned events and downloads whatever it finds behind the URLs.
-Finally, `mwkr` can reset the topics in the local Kafka instance.
+2. `filter` reads assembled events from a Kafka topic, filters them, and forwards those that include "wget" or "curl" in their payload to a new topic.
+3. `clean` reads the filtered events from Kafka, extracts the URLs, and writes the info to a new topic.
+4. `download` reads the cleaned events and downloads whatever it finds behind the URLs.
+Finally, `reset-topics` can reset the topics in the local Kafka instance. For details about the arguments each tool accepts and the intermediate formats, please see `malware/README.md`.
 
 These tools run continuously in parallel. `assemble` requires a few arguments for configuration:
 - The data and time of the logs to start with. The Spoki logs contain a date and hour in their name. If you already have logs, you can check those. The time is in UTC, usually `date` will tell you the current time in the shell.
-- `-d` sets a tag. This tag needs to match the tag in the log files as well as the "consumer" tag of `mwfk`. The provided configuration file uses `test` as a tag.
+- `-d` sets a tag. This tag needs to match the tag in the log files as well as the "consumer" tag of `filter`. The provided configuration file uses `test` as a tag.
 - `--kafka` and `--csv` configure the program ingest CSV logs and to write to Kafka.
 - The final (positional) argument is the folder that contains the logs.
 `assemble` has quite the verbose output such as the files it tries to access, when it goes to sleep, etc. Don't be surprised if it quickly fills your screen.
 
-Both, `mwfk` and `mwck` need arguments for the tag to read from and write to. In this case this can simply be `test` as well. These are only tags to adapt the topic names. Expect little output from `mwfk`. `mwck` prints the URLs it finds alongside a bit of metadata.
+Both, `filter` and `clean` need arguments for the tag to read from and write to. In this case this can simply be `test` as well. These are only tags to adapt the topic names. Expect little output from `filter`. `clean` prints the URLs it finds alongside a bit of metadata.
 
-`mwdk` needs a tag to read from and produces a variety of files--when data makes it through the pipeline. An `activity` folder contains logs for all discovered malware names. The folder `malware` collects the downloads sorted into subfolders that use the hashes of the downloaded data. Each of those folders contains the data named `malware.bin` and a compressed log file with meta data. Since this program creates new folders, we suggest running it inside a separate folder, e.g. `malware/data`.
+`download` needs a tag to read from and produces a variety of files--when data makes it through the pipeline. An `activity` folder contains logs for all discovered malware names. The folder `malware` collects the downloads sorted into subfolders that use the hashes of the downloaded data. Each of those folders contains the data named `malware.bin` and a compressed log file with meta data. Since this program creates new folders, we suggest running it inside a separate folder, e.g. `malware/data`.
 
 (Don't forget to activate the virtual environment in each tab/terminal that runs one of the tools: `source envs/bin/activate`.)
 
 ```
 $ assemble -s 2021-08-16 -H 12 -d test --kafka --csv ../logs
-$ mwfk -c test -p test
-$ mwck -c test -p test
-$ mwdk -c test
+$ filter -c test -p test
+$ clean -c test -p test
+$ download -c test
 ```
 
-The script `mwkr -d test` resets the data in the local Kafka instance for the tag `test`.
+The script `reset-topics -d test` resets the data in the local Kafka instance for the tag `test`.
 
 
-### Probing Spoki
+### Testing: Probing Spoki and the Malware Tools
 
-The malware tools contain an additional script to probe Spoki with a two-phase event: `test-spoki`. It uses scapy to craft packets and simulate an interaction. You can run it from a separate host and probe the interface Spoki is listening on.
+The malware tools contain an additional script to probe Spoki with a two-phase event: `test-spoki`. It uses scapy to craft packets and simulate an interaction. You can run it from a separate host and probe the interface Spoki is listening on. The only required argument for `test-spoki` is the target host as a positional argument, although the port can be configured using `--port`.
 
 The script blocks until it receives a reply from Spoki. When finished it should print DONE on the screen.
 
-While interaction with Spoki is instant Spoki does not flush the write buffer regularly and it might take a bit to write the logs to disk. You can check that the events show up in the log, e.g., by grep'ing for the start of the sequence number the tool uses for the packets. `12981`. The log that contains the events matches the pattern `YYYY-MM-DD.HH:00:00.TAG.spoki.tcp.raw.TIMESTAMP.csv`. Here is an example from my local setup (with an added header):
+While interaction with Spoki is instant, Spoki does not flush the write buffer regularly and it might take a bit to write the logs to disk. You can check that the events show up in the log, e.g., by grep'ing for the start of the sequence number the tool uses for the packets. `12981`. The log that contains the events matches the pattern `YYYY-MM-DD.HH:00:00.TAG.spoki.tcp.raw.TIMESTAMP.csv`. Here is an example from my local setup (with an added header):
 
 ```
 $ cat 2021-10-13.14:00:00.test.spoki.tcp.raw.1634133600.csv | grep 12981
@@ -193,13 +196,13 @@ ts|saddr|daddr|ipid|ttl|proto|sport|dport|anum|snum|options|payload|syn|ack|rst|
 1634135138275|141.22.28.35|141.22.28.17|11727|64|tcp|41725|42|1908621218|1298131||7767657420687474703a2f2f3134312e32322e32382e33352f6576696c|0|1|0|0|8192|true|tcp-rst|134217739|0|1908621218|2
 ```
 
-The malware toolchain takes quite a while. It wants to ensure that it doesn't miss delayed packets and thus waits up to an hour before writing events to disk. To shorten we wait time there are prepared example logs in `logs/example/`. They were created with the same tools in our lab environment. Pointing the `assassemble` to them will process the events quickly. These logs use the tag `test`. Start Kafka and then `mwfk`, `mwck`, and `mwdk` as noted above and run:
+The malware tool chain takes quite a while. It wants to ensure that it doesn't miss delayed packets and thus waits up to an hour before writing events to disk. To shorten we wait time there are prepared example logs in `logs/example/`. They were created with the same tools in our lab environment. Pointing the `assassemble` to them will process the events quickly. These logs use the tag `test`. Start Kafka and then `filter`, `clean`, and `download` as noted above and run:
 
 ```
 $ assemble -s 2021-10-13 -H 21 -d test --kafka --csv ../logs/example
 ```
 
-`mwck` should print a single line with the tool (wget), url (http://141.22.28.35/evil), scanner (141.22.28.35), and port (80). `mwdk` will create a new `activity` folder with a log file for this malware name (`evil.2021.10.csv.gz`) that list the download attempt. If the download was successful, a directory `malware` will contain a folder named after the download hash that contains the download (`malware.bin`) and a compressed log file.
+`clean` should print a single line with the tool (wget), url (http://141.22.28.35/evil), hoster (141.22.28.35), and port (80). `download` will create a new `activity` folder with a log file for this malware name (`evil.2021.10.csv.gz`) that list the download attempt. If the download was successful, a directory `malware` will contain a folder named after the download hash that contains the download (`malware.bin`) and a compressed log file.
 
 **Note** The download part accesses a file on my work computer. It get's multiple request from different IPs each day. I don't check the logs to see where from. Please let me know if I should disable it.
 
