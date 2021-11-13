@@ -327,4 +327,28 @@ optional arguments:
 
 The folder where `vtchecker` stores its data can be configured via `-R`. It will contain a subfolder for the API version, set via `-A`. At the moment only the API version 3 is supported. The directory checked for new hashes can be set via `-H`. This is only tested with the `malware` folder created by `download`. The interval to check for new hashes can be set with `-S` (in seconds). Finally, the database folders are stores in '.'.
 
+**Note:** The script will not create the `REPLIES_DIR` folder. Please create it by hand before starting it.
+
+
+### Top Ports
+
+The script `topports` will analyze the output of `assemble` and collect the top ports for "regular syns", "irregular syns", and "two-phase" events. For each category, it prints the total number of identified events, the top 25 ports from most targeted to least targeted alongside the number of events and the share of the total events in that category. Lastly, it prints the number of different ports that were observed by events in the given category. A bar plot further visualizes the distributions in each category. The scripts prints the names of created PDF plot files.
+
+Known scanners will be excluded. The script itself contains prefixes used by well-known scan projects (censys, rapid7, shadowserver, kudelski). These prefixes can be supplemented with IP lists that will be read from a given folder. Each list has to follow the naming convention "ips.{name}.txt" and should contain one IPv4 address per line. Our own lists are not included here (they were generated from data collected during our measurement period).
+
+```
+(envs) evaluation> topports --help
+Usage: topports [OPTIONS] FOLDER
+
+Options:
+  -v, --vantagepoint TEXT      vantage point where the logs were captured
+  -s, --scanner-list-dir PATH  set folder with additional scanner info
+  -d, --days INTEGER           number of days to analyze
+  -f, --force                  force recalculation
+  --help                       Show this message and exit.
+```
+
+The (positional) last argument points to the folder with the assembled logs and the argument `-v` chooses the tag of the files, similar to the tags used by the malware tool chain. `--scanner-list-dir` sets the path to check for additional scanner lists (if you don't have any, you can set this to `'.'`). Only a given number of log will be processed. This can be configured via `--days`. Since one log file contains an hour of data, this will process `days * 24` files in total.
+
+Since the original calculation takes quite a bit, the script save some intermediate files. These CSV follow the naming convention `{datasource}.ports.{type}.{days}.csv`. An aggregated JSON uses the name `{datasource}-top-ports.{days}.json`.
 

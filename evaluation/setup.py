@@ -81,6 +81,7 @@ setup(
         "scapy",
         "tqdm",
         "pause",
+        "matplotlib",
         # eg: 'aspectlib==1.1.1', 'six>=1.7',
     ],
     extras_require={
@@ -101,6 +102,8 @@ setup(
             # Virustotal checker.
             "vtchecker = cse.malware.database.vtchecker:main",
             "databasetocsv = cse.malware.database.databasetocsv:main",
+            # Analysis.
+            "topports = cse.analysis.topports:main",
         ]
     },
 )
