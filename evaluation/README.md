@@ -350,5 +350,5 @@ Options:
 
 The (positional) last argument points to the folder with the assembled logs and the argument `-v` chooses the tag of the files, similar to the tags used by the malware tool chain. `--scanner-list-dir` sets the path to check for additional scanner lists (if you don't have any, you can set this to `'.'`). Only a given number of log will be processed. This can be configured via `--days`. Since one log file contains an hour of data, this will process `days * 24` files in total.
 
-Since the original calculation takes quite a bit, the script save some intermediate files. These CSV follow the naming convention `{datasource}.ports.{type}.{days}.csv`. An aggregated JSON uses the name `{datasource}-top-ports.{days}.json`.
+Since the original calculation takes quite a bit, the script save some intermediate files. These CSV follow the naming convention `{datasource}.ports.{type}.{days}.csv`. An aggregated JSON uses the name `{datasource}-top-ports.{days}.json`. The argument `--force` forces a recalculation of the data in the presence the cached files.
 
