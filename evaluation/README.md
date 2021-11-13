@@ -1,12 +1,13 @@
-# Malware analysis
+# Evaluation
 
-CAF Spoki Evaluation, Version 2
+This directory contains code for processing and analyzing Spoki's logs. 
+
 
 
 ## Dependencies
 
 * Python3
-* Python3 Virtualenvironments
+* Python3 Virtual Environments
 * Kafka
   * Java
 
@@ -17,7 +18,10 @@ $ sudo apt install python3.8-dev python3.8-venv openjdk-11-jdk
 ```
 
 
-## Kafka
+
+## Malware Tool Chain
+
+### Kafka
 
 Malware processing uses Kafka for communication between processes. You can setup Kafka and Zookeeper as system services or just run them directly [as follows](https://kafka.apache.org/quickstart). (Since you need multiple processes running, `screen` or `tmux` can make the multiplexing easier.)
 
@@ -33,7 +37,7 @@ $ bin/kafka-server-start.sh config/server.properties
 ```
 
 
-## Setup
+### Setup
 
 Requires python 3. The development setup will link executables into the virtual environment and make them easily accessible for development.
 
@@ -48,7 +52,7 @@ $ make update
 ```
 
 
-## Running
+### Running the Malware Tool Chain
 
 Once you got that running, the malware scripts can be started. They should each write (and read) from a Kafka topic. The tool chain requires quite a bit of memory and has not been optimized in that regard. 8GB of RAM should be safe.
 
@@ -70,11 +74,11 @@ $ download -c test
 The script `reset-topics -d test` resets the data in the local Kafka instance for the tag `test`.
 
 
-## Details
+### Details
 
 This lists details on the program options, the intermediate data formats, and how to process them.
 
-### Assemble
+#### Assemble
 
 `assemble` read the logs written by Spoki and assembles two-phase events from the events they contain. Spoki writes two types of logs:
 
@@ -86,7 +90,7 @@ The events in both logs can be matched via a user id. In a first step, `assemble
 These sequences can than be matched into two-phase events, i.e., an irregular sequence followed by a regular sequence. All events, two-phase, one phase, and unmatched packets are written to a sink by Spoki.
 
 ```
-(envs) ~/cse2> assemble --help
+(envs) evaluation> assemble --help
 Usage: assemble [OPTIONS] LOG_DIR
 
 Options:
@@ -191,7 +195,7 @@ At runtime `assemble` prints information about the logs it attempts to read and 
 These events can be read from the Kafka topic, e.g. using `kafka-python`.
 
 ```python
-from kafka import KafkaProducer, KafkaConsumer
+from kafka import KafkaConsumer
 
 # This is the default Kafka port. Adjust it to your needs.
 kafka_port = 9092
@@ -218,12 +222,12 @@ while True:
         # "event" is now a JSON object with the fields above.
 ```
 
-### Filter
+#### Filter
 
 This program reads the events from `assemble` and filter the payloads in for occurrences of "wget" and "curl". For matching events it publishes a subset of the data along with the decoded payload to a new topic.
  
 ```
-(envs) ~/cse2> filter --help
+(envs) evaluation> filter --help
 Usage: filter [OPTIONS]
 
 Options:
@@ -246,7 +250,7 @@ Every 100,000 events, `filter` prints the events it ingested and how many downlo
 Clean extracts URLs from the events identified in the previous step. 
 
 ```
-(envs) ~/cse2> clean --help
+(envs) evaluation> clean --help
 Usage: clean [OPTIONS]
 
 Options:
@@ -267,13 +271,12 @@ At runtime, the script prints a line for each URL it identifies. It contains the
 Events are published as JSON with "ts", "tag", "saddr", "daddr", "sport", "dport", "payload", "tool", "decoded", "url", "server", "port", 
 "name". The last four fields are new. They contain the download URL and its parts separately (server, port, name).
 
-
-### Download
+#### Download
 
 The last part in the pipeline, `download` consumes the cleaned events and attempts to download executables from the given URLs.
 
 ```
-(envs) ~/cse2> download --help
+(envs) evaluation> download --help
 Usage: download [OPTIONS]
 
 Options:
@@ -287,4 +290,41 @@ Naturally, it reads from `"cse2.malware.cleaned"` with an optional tag at the en
 
 * An `activity` folder contains logs for all discovered malware names.
 * The folder `malware` collects the downloads sorted into subfolders that use the hashes of the downloaded data. Each of those folders contains the data named `malware.bin` and a compressed log file with meta data.
+
+
+
+## Further Analysis
+
+In addition to the malware tool chain, this folder contains scripts to further analyze the data.
+
+- `vtchecker` checks the hashes of downloaded executables against the VirusTotal database.
+- ...
+
+Some of these scripts read in the data created by `assemble`. They are not connected to Kafka and process the data offline. To generate the required logs, run `assemble` with the `--logs` option, select an output folder with `-o`.
+
+### Virus Total Queries
+
+The hashes collected in the `malware` folder can be automatically queried in VT. This task is performed by `vtchecker`. It uses the API version 3 of Virus Total to collect information about the hashes. It stores the complete entries in `virustotal/v3` as `HASH.json.gz` and additionally keeps a `database.json.gz` that stores the time stamps when spoki saw the hash and when VirusTotal saw the hash. Hashes that are not seen are required at the end of each day if tokens are still available.
+
+To run the script, your VirusTotal API token must be exported as `VT_API_KEY`. It will then be read at runtime. Starting the script with `-O` makes it query the available tokens on startup. The script keeps sticks to the [rate limit of the free API](https://developers.virustotal.com/reference/public-vs-premium-api).
+
+When all available hashes were checked the script will sleep for 600 seconds before rechecking.
+
+```
+(envs) evaluation> vtchecker --help
+usage: vtchecker [-h] [-H HASH_DIR] [-R REPLIES_DIR] [-A API_VERSION] [-S SLEEP_INTERVAL] [-O]
+
+Check hashes agains VT.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -H HASH_DIR, --hash-dir HASH_DIR
+  -R REPLIES_DIR, --replies-dir REPLIES_DIR
+  -A API_VERSION, --api-version API_VERSION
+  -S SLEEP_INTERVAL, --sleep-interval SLEEP_INTERVAL
+  -O, --query-tokens-online
+```
+
+The folder where `vtchecker` stores its data can be configured via `-R`. It will contain a subfolder for the API version, set via `-A`. At the moment only the API version 3 is supported. The directory checked for new hashes can be set via `-H`. This is only tested with the `malware` folder created by `download`. The interval to check for new hashes can be set with `-S` (in seconds). Finally, the database folders are stores in '.'.
+
 

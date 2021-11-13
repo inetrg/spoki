@@ -26,7 +26,7 @@ setup(
     name="mwdl",
     version="0.2.0",
     license="BSD 3-Clause License",
-    description="Spoki Malware Downloads",
+    description="Spoki Evaluation",
     long_description="%s\n%s"
     % (
         re.compile("^.. start-badges.*^.. end-badges", re.M | re.S).sub(
@@ -46,7 +46,7 @@ setup(
         # complete classifier list: http://pypi.python.org/pypi?%3Aaction=list_classifiers
         "Development Status :: 5 - Production/Stable",
         "Intended Audience :: Developers",
-        "License :: OSI Approved :: BSD License",
+        "License :: OSI Approved :: MIT License",
         "Operating System :: Unix",
         "Operating System :: POSIX",
         # 'Operating System :: Microsoft :: Windows',
@@ -80,6 +80,7 @@ setup(
         "requests",
         "scapy",
         "tqdm",
+        "pause",
         # eg: 'aspectlib==1.1.1', 'six>=1.7',
     ],
     extras_require={
