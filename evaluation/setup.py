@@ -104,6 +104,8 @@ setup(
             "databasetocsv = cse.malware.database.databasetocsv:main",
             # Analysis.
             "topports = cse.analysis.topports:main",
+            "contact-types = cse.analysis.contacttypes:main",
+            "aggregate-ct = cse.analysis.aggregatecontacttypes:main",
         ]
     },
 )
