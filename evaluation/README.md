@@ -352,3 +352,65 @@ The (positional) last argument points to the folder with the assembled logs and 
 
 Since the original calculation takes quite a bit, the script save some intermediate files. These CSV follow the naming convention `{datasource}.ports.{type}.{days}.csv`. An aggregated JSON uses the name `{datasource}-top-ports.{days}.json`. The argument `--force` forces a recalculation of the data in the presence the cached files.
 
+When processing the files the script shows a progress bar based on the number of progressed files.
+
+### Contact Types
+
+Te contact types statistics describe how and with what payload scanners contact the vantage point. This analysis is based on two scripts: `contact-types` and `aggregate-ct`.
+
+`contact-types` collects the actual data. It works on a per file-basis, but can append to an existing log (not thread safe). Thus it can run over multiple files continuously. Processing weeks or months of data may take a while. With that case in mind, the script can be started in multiple loops, each working on a different time frame and appending to a different log. The second script reads in any number of these output files and prints the aggregate contact type statistics.
+
+```
+(envs) evaluation> contact-types --help
+Usage: contact-types [OPTIONS] LOGFILE
+
+Options:
+  -r, --raw TEXT     directory with raw logs
+  --swift / --local  load data from swift
+  -i, --id INTEGER   give the log file a unique name  [required]
+  --help             Show this message and exit.
+```
+
+The positional argument of `contact-types` signifies the script to process. This must be a log created by `assemble`. Next, the script needs the directory of the raw logs created by Spoki to re-check that all payloads were found and matched. The name of the raw log file matching the input file can be calculated from the input file, thus the folder suffices, set with `--raw`. The raw logs can alternatively be read from OpenStack Swift, toggled via `--swift`. Output logs have the name pattern `f"{vantagepoint}.contacttypes.{fileid}.csv.gz"`, where the "vantage point" is the tag of the log files ("test" in the examples in these README files). The "file id" can be set via `--id` and avoids name collisions when running the script in parallel.
+
+An example run that processes the data for all days in October 20201 with the raw data `$RAW_DIR`, the assembled logs in `$ASSEMBLED_DIR`, the tag `test`, and file id "1" could look like this:
+
+```
+$ for day in $(seq -f %02g 1 31); do for hour in $(seq -f %02g 0 23); do contact-types -r $RAW_DIR -i 1 $ASSEMBLED_DIR/test-events-202110${day}-${hour}0000.json.gz ; done; done
+```
+
+At runtime, the script shows a progress bar based on the processed lines. The output file has the columns "all", "without-ack", "without-payload", "with-payload", "ascii", "hex", "downloader", "matched". Each column lists the counts for one input file.
+
+```
+(envs) evaluation> aggregate-ct --help
+Usage: aggregate-ct [OPTIONS] [FILES]...
+
+Options:
+  --help  Show this message and exit.
+```
+
+The aggregation script takes any number of positional arguments. Each must be a log file created by `contact-types`.
+
+### GreyNoise Checker
+
+This script queries the GreyNoise API for information about IP addresses and annotates a given *gzipped* CSV file with the columns "classification" and "spoofable". The "classification" can be either of "benign", "unknown", "malicious", or (if GN does not any have info) "no result". The input CSV file has to have a column named "saddr" that contains IPv4 addresses. The script will create a new CSV file that is a copy of the input file with the two additional columns with the old name prefixed with "noised.".
+
+```
+(envs) evaluation> gnchecker --help
+Usage: gnchecker [OPTIONS] SOURCE_FILE
+
+Options:
+  -b, --batch-size INTEGER        set batch size, some calls don't support >
+                                  500 (500)
+  -n, --number-of-elements INTEGER
+                                  only process the first N elements (None ->
+                                  all)
+  --help                          Show this message and exit.
+```
+
+In addition to the input file as a positional argument, the script accepts configuration of the batch size for requests sent to GN via `--batch-size`. Note that some of the API calls do not support address batches larger than 500 (the default). Additionally, the script can only parse the first `N` elements in a file with called with `--number-of-elements` (`None` is the default and will make the script query the whole file).
+
+A GreyNoise API key has to be exported as `GN_API_KEY` in the shell environment. This can be done in a separate statement via `export GN_API_KEY=MY_KEY`.
+
+**WARNING:** If the output exists, the script will append to it instead of replacing it.
+
