@@ -82,6 +82,7 @@ setup(
         "tqdm",
         "pause",
         "matplotlib",
+        "pyasn",
         # eg: 'aspectlib==1.1.1', 'six>=1.7',
     ],
     extras_require={
@@ -107,6 +108,8 @@ setup(
             "contact-types = cse.analysis.contacttypes:main",
             "aggregate-ct = cse.analysis.aggregatecontacttypes:main",
             "gnchecker = cse.analysis.database.gnchecker:main",
+            "addasn = cse.analysis.addasn:main",
+            "addgeo = cse.analysis.addgeo:main",
         ]
     },
 )
