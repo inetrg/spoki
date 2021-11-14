@@ -106,6 +106,7 @@ setup(
             "topports = cse.analysis.topports:main",
             "contact-types = cse.analysis.contacttypes:main",
             "aggregate-ct = cse.analysis.aggregatecontacttypes:main",
+            "gnchecker = cse.analysis.database.gnchecker:main",
         ]
     },
 )
