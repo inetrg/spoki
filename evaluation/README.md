@@ -414,3 +414,61 @@ A GreyNoise API key has to be exported as `GN_API_KEY` in the shell environment.
 
 **WARNING:** If the output exists, the script will append to it instead of replacing it.
 
+### ASN Meta Data
+
+*We use the python module `pyasn` to annotate IPs with their ASN and prefix meta data. This requires database files for the respective dates. Check the [pyasn module](https://pypi.org/project/pyasn/) on how to acquire these files. Our script expects the names of the database to follow the scheme `ipasn_{date}.gz`, with the date format `YYYY-MM-DD`.*
+
+The script `addasn` adds ASN and prefix meta data for a given (gzipped) CSV file. It does this by copying the original file and adding two new columns. 
+
+```
+(envs) ~/G/i/evaluation> addasn --help
+usage: addasn [-h] -i INPUT [-d DATE] [-a ASNDB_DIRECTORY] [-f FIELD]
+
+Add ASN meta data to a CSV file.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -i INPUT, --input INPUT
+                        file to annotate
+  -d DATE, --date DATE  date of the database file (d: 2020-05-15)
+  -a ASNDB_DIRECTORY, --asndb-directory ASNDB_DIRECTORY
+                        directory to with ipasn database files (d: ipasn)
+  -f FIELD, --field FIELD
+                        names of the columns to process
+```
+
+`addasn` expects a gzipped CSV file with the file ending `csv.gz` as the input via `--input`. The columns to process can be chosen with `--field`. This can be added multiple times to process multiple columns. For each column two new columns will be appended with the names `COLUMN_NAME.prefix` and `COLUMN_NAME.asn`. The directory containing the IP asn database files can be set with `--asndb-directory` and defaults to `ipasn`. The date of the file to load can be set with `--date`, in the format `YYYY-MM-DD`.
+
+The output file will carry the same name with a `meta.` in front of the `csv.gz` ending. (This is done via simple string substitution.)
+
+Before it finishes the script will print how many prefixes or ASNs it could not find.
+
+### Add Geolocation Data
+
+*We use the python module `pyipmeta` from CAIDA which depends on `libipmeta`. Both require a bit of setup work. Please check the respective repositories [pyipmeta](https://github.com/CAIDA/pyipmeta) and [libipmeta](https://github.com/CAIDA/libipmeta) for setup instruction. Furthermore, we have access to the NetAcuity database and have not tested the scripts with other input.*
+
+Similar to `addasn` this script, `addgeo` adds geolocation data to a given zipped CSV file ending with `csv.gz`. It does this by copying the input file and adding four new columns for the country code, region code, continent code, and city.
+
+```
+(envs) ~/G/i/evaluation> addgeo --help
+usage: addgeo [-h] -i INPUT [-d DATE] [-f FIELD] [-p PROVIDER]
+
+Annotate CSV with geo data.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -i INPUT, --input INPUT
+                        file to annotate
+  -d DATE, --date DATE  date of the database file (d: 2021-05-15)
+  -f FIELD, --field FIELD
+                        names of the columns to process
+  -p PROVIDER, --provider PROVIDER
+                        choose provider (d: netacq-edge)
+```
+
+`addgeo` expects a gzipped CSV file with the file ending `csv.gz` as the input via `--input`. The columns to process can be chosen with `--field`. This can be added multiple times to process multiple columns. For each column two new columns will be appended with the names `COLUMN_NAME.country_code`, `COLUMN_NAME.region_code`, `COLUMN_NAME.continent_code`, and `COLUMN_NAME.city`. The date of the database to use can be set via `--date`. The provider used for libipmeta is set via `--provider` and defaults to `netacq-edge` (this option requires access to the CAIDA setup).
+
+The output file will carry the same name with a `geo.` in front of the `csv.gz` ending. (This is done via simple string substitution.)
+
+After annotating a column the script prints info on the missing values.
+
