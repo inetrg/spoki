@@ -23,7 +23,7 @@ def read(*names, **kwargs):
 
 
 setup(
-    name="mwdl",
+    name="cse",
     version="0.2.0",
     license="BSD 3-Clause License",
     description="Spoki Evaluation",
