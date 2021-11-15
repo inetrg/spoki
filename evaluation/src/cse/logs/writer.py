@@ -86,11 +86,11 @@ class LogWriter:
 
     def write_elems(self, elements, filets):
         fh = self.__get_file(filets)
-        json.dump(elements, fh)
-        # for elem in elements:
-        #     fh.write(json.dumps(elem).encode("utf-8"))
+        # json.dump(elements, fh)
+        for elem in elements:
+            fh.write(json.dumps(elem) + '\n')
 
     def write_elem(self, elem, filets):
         fh = self.__get_file(filets)
-        json.dump(elem, fh)
-        # fh.write(json.dumps(elem).encode("utf-8"))
+        # json.dump(elem, fh)
+        fh.write(json.dumps(elem) + '\n')

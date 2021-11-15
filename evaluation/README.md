@@ -365,18 +365,18 @@ Te contact types statistics describe how and with what payload scanners contact 
 Usage: contact-types [OPTIONS] LOGFILE
 
 Options:
-  -r, --raw TEXT     directory with raw logs
-  --swift / --local  load data from swift
-  -i, --id INTEGER   give the log file a unique name  [required]
-  --help             Show this message and exit.
+  -r, --raw TEXT    directory with raw logs
+  --compressed      load compressed files
+  -i, --id INTEGER  give the log file a unique name  [required]
+  --help            Show this message and exit.
 ```
 
-The positional argument of `contact-types` signifies the script to process. This must be a log created by `assemble`. Next, the script needs the directory of the raw logs created by Spoki to re-check that all payloads were found and matched. The name of the raw log file matching the input file can be calculated from the input file, thus the folder suffices, set with `--raw`. The raw logs can alternatively be read from OpenStack Swift, toggled via `--swift`. Output logs have the name pattern `f"{vantagepoint}.contacttypes.{fileid}.csv.gz"`, where the "vantage point" is the tag of the log files ("test" in the examples in these README files). The "file id" can be set via `--id` and avoids name collisions when running the script in parallel.
+The positional argument of `contact-types` signifies the script to process. This must be a log created by `assemble`. Next, the script needs the directory of the raw logs created by Spoki to re-check that all payloads were found and matched. The name of the raw log file matching the input file can be calculated from the input file, thus the folder suffices, set with `--raw`. If the raw logs are compressed, `--compressed` tells the . Output logs have the name pattern `f"{vantagepoint}.contacttypes.{fileid}.csv.gz"`, where the "vantage point" is the tag of the log files ("test" in the examples in these README files). The "file id" can be set via `--id` and avoids name collisions when running the script in parallel.
 
 An example run that processes the data for all days in October 20201 with the raw data `$RAW_DIR`, the assembled logs in `$ASSEMBLED_DIR`, the tag `test`, and file id "1" could look like this:
 
 ```
-$ for day in $(seq -f %02g 1 31); do for hour in $(seq -f %02g 0 23); do contact-types -r $RAW_DIR -i 1 $ASSEMBLED_DIR/test-events-202110${day}-${hour}0000.json.gz ; done; done
+$ for day in $(seq -f %02g 1 31); do for hour in $(seq -f %02g 0 23); do contact-types -r $RAW_DIR -i 1 --compressed $ASSEMBLED_DIR/test-events-202110${day}-${hour}0000.json.gz ; done; done
 ```
 
 At runtime, the script shows a progress bar based on the processed lines. The output file has the columns "all", "without-ack", "without-payload", "with-payload", "ascii", "hex", "downloader", "matched". Each column lists the counts for one input file.
@@ -418,7 +418,7 @@ A GreyNoise API key has to be exported as `GN_API_KEY` in the shell environment.
 
 *We use the python module `pyasn` to annotate IPs with their ASN and prefix meta data. This requires database files for the respective dates. Check the [pyasn module](https://pypi.org/project/pyasn/) on how to acquire these files. Our script expects the names of the database to follow the scheme `ipasn_{date}.gz`, with the date format `YYYY-MM-DD`.*
 
-The script `addasn` adds ASN and prefix meta data for a given (gzipped) CSV file. It does this by copying the original file and adding two new columns. 
+The script `addasn` adds ASN and prefix meta data for a given gzipped CSV file. It does this by copying the original file and adding two new columns. 
 
 ```
 (envs) ~/G/i/evaluation> addasn --help
@@ -439,7 +439,7 @@ optional arguments:
 
 `addasn` expects a gzipped CSV file with the file ending `csv.gz` as the input via `--input`. The columns to process can be chosen with `--field`. This can be added multiple times to process multiple columns. For each column two new columns will be appended with the names `COLUMN_NAME.prefix` and `COLUMN_NAME.asn`. The directory containing the IP asn database files can be set with `--asndb-directory` and defaults to `ipasn`. The date of the file to load can be set with `--date`, in the format `YYYY-MM-DD`.
 
-The output file will carry the same name with a `meta.` in front of the `csv.gz` ending. (This is done via simple string substitution.)
+The output file will carry the same name with a `meta.` in front of the `csv.gz` ending. **WARNING:** This is done via simple string substitution. If your filename does not end in `csv.gz` the input file will be overwritten!
 
 Before it finishes the script will print how many prefixes or ASNs it could not find.
 
@@ -468,7 +468,7 @@ optional arguments:
 
 `addgeo` expects a gzipped CSV file with the file ending `csv.gz` as the input via `--input`. The columns to process can be chosen with `--field`. This can be added multiple times to process multiple columns. For each column two new columns will be appended with the names `COLUMN_NAME.country_code`, `COLUMN_NAME.region_code`, `COLUMN_NAME.continent_code`, and `COLUMN_NAME.city`. The date of the database to use can be set via `--date`. The provider used for libipmeta is set via `--provider` and defaults to `netacq-edge` (this option requires access to the CAIDA setup).
 
-The output file will carry the same name with a `geo.` in front of the `csv.gz` ending. (This is done via simple string substitution.)
+The output file will carry the same name with a `geo.` in front of the `csv.gz` ending. **WARNING:** This is done via simple string substitution. If your filename does not end in `csv.gz` the input file will be overwritten!
 
 After annotating a column the script prints info on the missing values.
 

@@ -359,6 +359,8 @@ def main(folder, datasource, days, force_recalculation, lists):
         tups.sort(key=lambda x: x[1], reverse=True)
         tups = tups[:n]
         shares = [round(v * 100 / total, 2) for _, v in tups]
+        while len(shares) < n:
+            shares.append(0)
         return shares
 
     rshares = share_line(regular_sequence_ports, 25)

@@ -22,8 +22,6 @@ import gzip
 import json
 import mmap
 import os
-import sys
-import wandio
 
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -43,11 +41,6 @@ csvheader = [
     "downloader",
     "matched",
 ]
-
-# Build names for swift files.
-swift_container = "stardust-spoki"
-swift_fn = "datasource={}/protocol=tcp/type=raw/{}/{}.spoki.tcp.raw.{}.json.gz"
-
 
 def bufcount(filename):
     f = gzip.open(filename, "rt")
@@ -71,22 +64,24 @@ def get_num_lines(file_path):
 
 
 def get_data(ev):
-    tr = ev["trigger"]
-    if "tcp" in tr:
-        tcp = tr["tcp"]
-        syn = tcp["syn"]
-        ack = tcp["ack"]
+    # ts|saddr|daddr|ipid|ttl|proto|sport|dport|anum|snum|options|payload
+    #  |syn|ack|rst|fin|window size|probed|method|userid|probe anum
+    #  |probe snum|num probes
+    proto = ev['proto']
+    if proto == 'tcp':
+        syn = int(ev["syn"])
+        ack = int(ev["ack"])
         # fin = tcp["fin"]
         # rst = tcp["rst"]
-        if ack and not syn:
+        if ack == 1 and syn == 0:
             # IP data.
-            saddr = tr["saddr"]
-            daddr = tr["daddr"]
+            saddr = ev["saddr"]
+            daddr = ev["daddr"]
             # TCP data.
-            sport = int(tcp["sport"])
-            dport = int(tcp["dport"])
-            snum = int(tcp["snum"])
-            payload = tcp["payload"]
+            sport = int(ev["sport"])
+            dport = int(ev["dport"])
+            snum = int(ev["snum"])
+            payload = ev["payload"]
             if payload is not None and payload != "":
                 return (saddr, daddr, sport, dport, snum, payload)
     return None
@@ -107,9 +102,9 @@ def get_data(ev):
     help="directory with raw logs",
 )
 @click.option(
-    "--swift/--local",
-    default=False,
-    help="load data from swift",
+    "--compressed",
+    is_flag=True,
+    help="load compressed files",
 )
 @click.option(
     "--id",
@@ -119,7 +114,7 @@ def get_data(ev):
     type=int,
     help="give the log file a unique name",
 )
-def main(logfile, rawdir, swift, fileid):
+def main(logfile, rawdir, compressed, fileid):
     # Calculate raw file name from logfile.
     fn = logfile
     fn = fn.split("/")[-1]
@@ -137,7 +132,7 @@ def main(logfile, rawdir, swift, fileid):
     # print(f"year = {year}, month = {month}, day = {day}")
     time = parts[1]
     # print(f"time = {time}")
-    hour = time.replace("0000", "")
+    hour = time[:2]
     # print(f"hour = {hour}")
 
     dateobj = datetime(
@@ -155,47 +150,35 @@ def main(logfile, rawdir, swift, fileid):
     # Build ACK DB
     # Maybe (src, dst, sport, dport) -> [(snum, pl), ..]
     ackdb = defaultdict(lambda: [])
-    if swift:
-        file_date = f"year={year}/month={month}/day={day}"
-        filename = swift_fn.format(
-            vantagepoint,
-            file_date,
-            vantagepoint,
-            unixts,
-        )
-        fh = None
-        try:
-            fh = wandio.open(f"swift://{swift_container}/{filename}", "r")
-        except FileNotFoundError:
-            print(f"[WARN] file not found: {filename}")
-            return
-        except Exception:
-            print(f"[WARN] opening {filename}: ({sys.exc_info()[0]})")
-            return
-        for line in fh:
-            ev = json.loads(line)
-            attribues = get_data(ev)
+    
+    # Sample filename: 2021-10-13.22:00:00.test.spoki.tcp.raw.1634162400.csv
+    rawlog = f"{year}-{month}-{day}.{hour}:00:00.{vantagepoint}.spoki.tcp.raw.{unixts}.csv"
+    if compressed:
+        rawlog += '.gz'
+    # print(f"related log file: {rawlog}")
+
+    filepath = os.path.join(rawdir, rawlog)
+
+    if not Path(filepath).is_file():
+        print(f"can't find related raw log file: '{rawlog}' in '{rawdir}'")
+        return
+
+    def read_file(fh):
+        nonlocal ackdb
+        reader = csv.DictReader(fh, delimiter='|')
+        for row in reader:
+            attribues = get_data(row)
             if attribues is not None:
                 saddr, daddr, sport, dport, snum, payload = attribues
                 ackdb[(saddr, daddr, sport, dport)].append((snum, payload))
-    else:
-        # Sample filename: 2020-06-21.23:00:00.bcix-nt.spoki.tcp.raw.1592780400.json.gz
-        rawlog = f"{year}-{month}-{day}.{hour}:00:00.{vantagepoint}.spoki.tcp.raw.{unixts}.json.gz"
-        # print(f"related log file: {rawlog}")
 
-        filepath = os.path.join(rawdir, rawlog)
-
-        if not Path(filepath).is_file():
-            print(f"can't find related raw log file: '{rawlog}' in '{rawdir}'")
-            return
-
+    if compressed:
         with gzip.open(filepath, "rt") as fh:
-            for line in fh:
-                ev = json.loads(line)
-                attribues = get_data(ev)
-                if attribues is not None:
-                    saddr, daddr, sport, dport, snum, payload = attribues
-                    ackdb[(saddr, daddr, sport, dport)].append((snum, payload))
+            read_file(fh)
+                
+    else:
+        with open(filepath, "rt") as fh:
+            read_file(fh)
     # print(f"got alternative acks for {len(ackdb)} addresses")
 
     # Collect stats.
@@ -299,7 +282,7 @@ def main(logfile, rawdir, swift, fileid):
                 else:
                     print(f"ERR: unexpected tag: {tag}")
             except Exception as e:
-                print(f"ERR: failed to parse line '{e}'")
+                print(f"ERR: failed to parse line '{line}': {e}")
 
     # print(f"found {found_matching_payload} payloads")
     # print(f"all = {all}")
