@@ -1,12 +1,13 @@
-# Malware analysis
+# Evaluation
 
-CAF Spoki Evaluation, Version 2
+This directory contains code for processing and analyzing Spoki's logs. 
+
 
 
 ## Dependencies
 
 * Python3
-* Python3 Virtualenvironments
+* Python3 Virtual Environments
 * Kafka
   * Java
 
@@ -17,7 +18,10 @@ $ sudo apt install python3.8-dev python3.8-venv openjdk-11-jdk
 ```
 
 
-## Kafka
+
+## Malware Tool Chain
+
+### Kafka
 
 Malware processing uses Kafka for communication between processes. You can setup Kafka and Zookeeper as system services or just run them directly [as follows](https://kafka.apache.org/quickstart). (Since you need multiple processes running, `screen` or `tmux` can make the multiplexing easier.)
 
@@ -33,7 +37,7 @@ $ bin/kafka-server-start.sh config/server.properties
 ```
 
 
-## Setup
+### Setup
 
 Requires python 3. The development setup will link executables into the virtual environment and make them easily accessible for development.
 
@@ -48,7 +52,7 @@ $ make update
 ```
 
 
-## Running
+### Running the Malware Tool Chain
 
 Once you got that running, the malware scripts can be started. They should each write (and read) from a Kafka topic. The tool chain requires quite a bit of memory and has not been optimized in that regard. 8GB of RAM should be safe.
 
@@ -70,11 +74,11 @@ $ download -c test
 The script `reset-topics -d test` resets the data in the local Kafka instance for the tag `test`.
 
 
-## Details
+### Details
 
 This lists details on the program options, the intermediate data formats, and how to process them.
 
-### Assemble
+#### Assemble
 
 `assemble` read the logs written by Spoki and assembles two-phase events from the events they contain. Spoki writes two types of logs:
 
@@ -86,7 +90,7 @@ The events in both logs can be matched via a user id. In a first step, `assemble
 These sequences can than be matched into two-phase events, i.e., an irregular sequence followed by a regular sequence. All events, two-phase, one phase, and unmatched packets are written to a sink by Spoki.
 
 ```
-(envs) ~/cse2> assemble --help
+(envs) evaluation> assemble --help
 Usage: assemble [OPTIONS] LOG_DIR
 
 Options:
@@ -191,7 +195,7 @@ At runtime `assemble` prints information about the logs it attempts to read and 
 These events can be read from the Kafka topic, e.g. using `kafka-python`.
 
 ```python
-from kafka import KafkaProducer, KafkaConsumer
+from kafka import KafkaConsumer
 
 # This is the default Kafka port. Adjust it to your needs.
 kafka_port = 9092
@@ -218,12 +222,12 @@ while True:
         # "event" is now a JSON object with the fields above.
 ```
 
-### Filter
+#### Filter
 
 This program reads the events from `assemble` and filter the payloads in for occurrences of "wget" and "curl". For matching events it publishes a subset of the data along with the decoded payload to a new topic.
  
 ```
-(envs) ~/cse2> filter --help
+(envs) evaluation> filter --help
 Usage: filter [OPTIONS]
 
 Options:
@@ -246,7 +250,7 @@ Every 100,000 events, `filter` prints the events it ingested and how many downlo
 Clean extracts URLs from the events identified in the previous step. 
 
 ```
-(envs) ~/cse2> clean --help
+(envs) evaluation> clean --help
 Usage: clean [OPTIONS]
 
 Options:
@@ -267,13 +271,12 @@ At runtime, the script prints a line for each URL it identifies. It contains the
 Events are published as JSON with "ts", "tag", "saddr", "daddr", "sport", "dport", "payload", "tool", "decoded", "url", "server", "port", 
 "name". The last four fields are new. They contain the download URL and its parts separately (server, port, name).
 
-
-### Download
+#### Download
 
 The last part in the pipeline, `download` consumes the cleaned events and attempts to download executables from the given URLs.
 
 ```
-(envs) ~/cse2> download --help
+(envs) evaluation> download --help
 Usage: download [OPTIONS]
 
 Options:
@@ -287,4 +290,185 @@ Naturally, it reads from `"cse2.malware.cleaned"` with an optional tag at the en
 
 * An `activity` folder contains logs for all discovered malware names.
 * The folder `malware` collects the downloads sorted into subfolders that use the hashes of the downloaded data. Each of those folders contains the data named `malware.bin` and a compressed log file with meta data.
+
+
+
+## Further Analysis
+
+In addition to the malware tool chain, this folder contains scripts to further analyze the data.
+
+- `vtchecker` checks the hashes of downloaded executables against the VirusTotal database.
+- ...
+
+Some of these scripts read in the data created by `assemble`. They are not connected to Kafka and process the data offline. To generate the required logs, run `assemble` with the `--logs` option, select an output folder with `-o`.
+
+### Virus Total Queries
+
+The hashes collected in the `malware` folder can be automatically queried in VT. This task is performed by `vtchecker`. It uses the API version 3 of Virus Total to collect information about the hashes. It stores the complete entries in `virustotal/v3` as `HASH.json.gz` and additionally keeps a `database.json.gz` that stores the time stamps when spoki saw the hash and when VirusTotal saw the hash. Hashes that are not seen are required at the end of each day if tokens are still available.
+
+To run the script, your VirusTotal API token must be exported as `VT_API_KEY`. It will then be read at runtime. Starting the script with `-O` makes it query the available tokens on startup. The script keeps sticks to the [rate limit of the free API](https://developers.virustotal.com/reference/public-vs-premium-api).
+
+When all available hashes were checked the script will sleep for 600 seconds before rechecking.
+
+```
+(envs) evaluation> vtchecker --help
+usage: vtchecker [-h] [-H HASH_DIR] [-R REPLIES_DIR] [-A API_VERSION] [-S SLEEP_INTERVAL] [-O]
+
+Check hashes agains VT.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -H HASH_DIR, --hash-dir HASH_DIR
+  -R REPLIES_DIR, --replies-dir REPLIES_DIR
+  -A API_VERSION, --api-version API_VERSION
+  -S SLEEP_INTERVAL, --sleep-interval SLEEP_INTERVAL
+  -O, --query-tokens-online
+```
+
+The folder where `vtchecker` stores its data can be configured via `-R`. It will contain a subfolder for the API version, set via `-A`. At the moment only the API version 3 is supported. The directory checked for new hashes can be set via `-H`. This is only tested with the `malware` folder created by `download`. The interval to check for new hashes can be set with `-S` (in seconds). Finally, the database folders are stores in '.'.
+
+**Note:** The script will not create the `REPLIES_DIR` folder. Please create it by hand before starting it.
+
+
+### Top Ports
+
+The script `topports` will analyze the output of `assemble` and collect the top ports for "regular syns", "irregular syns", and "two-phase" events. For each category, it prints the total number of identified events, the top 25 ports from most targeted to least targeted alongside the number of events and the share of the total events in that category. Lastly, it prints the number of different ports that were observed by events in the given category. A bar plot further visualizes the distributions in each category. The scripts prints the names of created PDF plot files.
+
+Known scanners will be excluded. The script itself contains prefixes used by well-known scan projects (censys, rapid7, shadowserver, kudelski). These prefixes can be supplemented with IP lists that will be read from a given folder. Each list has to follow the naming convention "ips.{name}.txt" and should contain one IPv4 address per line. Our own lists are not included here (they were generated from data collected during our measurement period).
+
+```
+(envs) evaluation> topports --help
+Usage: topports [OPTIONS] FOLDER
+
+Options:
+  -v, --vantagepoint TEXT      vantage point where the logs were captured
+  -s, --scanner-list-dir PATH  set folder with additional scanner info
+  -d, --days INTEGER           number of days to analyze
+  -f, --force                  force recalculation
+  --help                       Show this message and exit.
+```
+
+The (positional) last argument points to the folder with the assembled logs and the argument `-v` chooses the tag of the files, similar to the tags used by the malware tool chain. `--scanner-list-dir` sets the path to check for additional scanner lists (if you don't have any, you can set this to `'.'`). Only a given number of log will be processed. This can be configured via `--days`. Since one log file contains an hour of data, this will process `days * 24` files in total.
+
+Since the original calculation takes quite a bit, the script save some intermediate files. These CSV follow the naming convention `{datasource}.ports.{type}.{days}.csv`. An aggregated JSON uses the name `{datasource}-top-ports.{days}.json`. The argument `--force` forces a recalculation of the data in the presence the cached files.
+
+When processing the files the script shows a progress bar based on the number of progressed files.
+
+### Contact Types
+
+Te contact types statistics describe how and with what payload scanners contact the vantage point. This analysis is based on two scripts: `contact-types` and `aggregate-ct`.
+
+`contact-types` collects the actual data. It works on a per file-basis, but can append to an existing log (not thread safe). Thus it can run over multiple files continuously. Processing weeks or months of data may take a while. With that case in mind, the script can be started in multiple loops, each working on a different time frame and appending to a different log. The second script reads in any number of these output files and prints the aggregate contact type statistics.
+
+```
+(envs) evaluation> contact-types --help
+Usage: contact-types [OPTIONS] LOGFILE
+
+Options:
+  -r, --raw TEXT    directory with raw logs
+  --compressed      load compressed files
+  -i, --id INTEGER  give the log file a unique name  [required]
+  --help            Show this message and exit.
+```
+
+The positional argument of `contact-types` signifies the script to process. This must be a log created by `assemble`. Next, the script needs the directory of the raw logs created by Spoki to re-check that all payloads were found and matched. The name of the raw log file matching the input file can be calculated from the input file, thus the folder suffices, set with `--raw`. If the raw logs are compressed, `--compressed` tells the . Output logs have the name pattern `f"{vantagepoint}.contacttypes.{fileid}.csv.gz"`, where the "vantage point" is the tag of the log files ("test" in the examples in these README files). The "file id" can be set via `--id` and avoids name collisions when running the script in parallel.
+
+An example run that processes the data for all days in October 20201 with the raw data `$RAW_DIR`, the assembled logs in `$ASSEMBLED_DIR`, the tag `test`, and file id "1" could look like this:
+
+```
+$ for day in $(seq -f %02g 1 31); do for hour in $(seq -f %02g 0 23); do contact-types -r $RAW_DIR -i 1 --compressed $ASSEMBLED_DIR/test-events-202110${day}-${hour}0000.json.gz ; done; done
+```
+
+At runtime, the script shows a progress bar based on the processed lines. The output file has the columns "all", "without-ack", "without-payload", "with-payload", "ascii", "hex", "downloader", "matched". Each column lists the counts for one input file.
+
+```
+(envs) evaluation> aggregate-ct --help
+Usage: aggregate-ct [OPTIONS] [FILES]...
+
+Options:
+  --help  Show this message and exit.
+```
+
+The aggregation script takes any number of positional arguments. Each must be a log file created by `contact-types`.
+
+### GreyNoise Checker
+
+This script queries the GreyNoise API for information about IP addresses and annotates a given *gzipped* CSV file with the columns "classification" and "spoofable". The "classification" can be either of "benign", "unknown", "malicious", or (if GN does not any have info) "no result". The input CSV file has to have a column named "saddr" that contains IPv4 addresses. The script will create a new CSV file that is a copy of the input file with the two additional columns with the old name prefixed with "noised.".
+
+```
+(envs) evaluation> gnchecker --help
+Usage: gnchecker [OPTIONS] SOURCE_FILE
+
+Options:
+  -b, --batch-size INTEGER        set batch size, some calls don't support >
+                                  500 (500)
+  -n, --number-of-elements INTEGER
+                                  only process the first N elements (None ->
+                                  all)
+  --help                          Show this message and exit.
+```
+
+In addition to the input file as a positional argument, the script accepts configuration of the batch size for requests sent to GN via `--batch-size`. Note that some of the API calls do not support address batches larger than 500 (the default). Additionally, the script can only parse the first `N` elements in a file with called with `--number-of-elements` (`None` is the default and will make the script query the whole file).
+
+A GreyNoise API key has to be exported as `GN_API_KEY` in the shell environment. This can be done in a separate statement via `export GN_API_KEY=MY_KEY`.
+
+**WARNING:** If the output exists, the script will append to it instead of replacing it.
+
+### ASN Meta Data
+
+*We use the python module `pyasn` to annotate IPs with their ASN and prefix meta data. This requires database files for the respective dates. Check the [pyasn module](https://pypi.org/project/pyasn/) on how to acquire these files. Our script expects the names of the database to follow the scheme `ipasn_{date}.gz`, with the date format `YYYY-MM-DD`.*
+
+The script `addasn` adds ASN and prefix meta data for a given gzipped CSV file. It does this by copying the original file and adding two new columns. 
+
+```
+(envs) ~/G/i/evaluation> addasn --help
+usage: addasn [-h] -i INPUT [-d DATE] [-a ASNDB_DIRECTORY] [-f FIELD]
+
+Add ASN meta data to a CSV file.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -i INPUT, --input INPUT
+                        file to annotate
+  -d DATE, --date DATE  date of the database file (d: 2020-05-15)
+  -a ASNDB_DIRECTORY, --asndb-directory ASNDB_DIRECTORY
+                        directory to with ipasn database files (d: ipasn)
+  -f FIELD, --field FIELD
+                        names of the columns to process
+```
+
+`addasn` expects a gzipped CSV file with the file ending `csv.gz` as the input via `--input`. The columns to process can be chosen with `--field`. This can be added multiple times to process multiple columns. For each column two new columns will be appended with the names `COLUMN_NAME.prefix` and `COLUMN_NAME.asn`. The directory containing the IP asn database files can be set with `--asndb-directory` and defaults to `ipasn`. The date of the file to load can be set with `--date`, in the format `YYYY-MM-DD`.
+
+The output file will carry the same name with a `meta.` in front of the `csv.gz` ending. **WARNING:** This is done via simple string substitution. If your filename does not end in `csv.gz` the input file will be overwritten!
+
+Before it finishes the script will print how many prefixes or ASNs it could not find.
+
+### Add Geolocation Data
+
+*We use the python module `pyipmeta` from CAIDA which depends on `libipmeta`. Both require a bit of setup work. Please check the respective repositories [pyipmeta](https://github.com/CAIDA/pyipmeta) and [libipmeta](https://github.com/CAIDA/libipmeta) for setup instruction. Furthermore, we have access to the NetAcuity database and have not tested the scripts with other input.*
+
+Similar to `addasn` this script, `addgeo` adds geolocation data to a given zipped CSV file ending with `csv.gz`. It does this by copying the input file and adding four new columns for the country code, region code, continent code, and city.
+
+```
+(envs) ~/G/i/evaluation> addgeo --help
+usage: addgeo [-h] -i INPUT [-d DATE] [-f FIELD] [-p PROVIDER]
+
+Annotate CSV with geo data.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -i INPUT, --input INPUT
+                        file to annotate
+  -d DATE, --date DATE  date of the database file (d: 2021-05-15)
+  -f FIELD, --field FIELD
+                        names of the columns to process
+  -p PROVIDER, --provider PROVIDER
+                        choose provider (d: netacq-edge)
+```
+
+`addgeo` expects a gzipped CSV file with the file ending `csv.gz` as the input via `--input`. The columns to process can be chosen with `--field`. This can be added multiple times to process multiple columns. For each column two new columns will be appended with the names `COLUMN_NAME.country_code`, `COLUMN_NAME.region_code`, `COLUMN_NAME.continent_code`, and `COLUMN_NAME.city`. The date of the database to use can be set via `--date`. The provider used for libipmeta is set via `--provider` and defaults to `netacq-edge` (this option requires access to the CAIDA setup).
+
+The output file will carry the same name with a `geo.` in front of the `csv.gz` ending. **WARNING:** This is done via simple string substitution. If your filename does not end in `csv.gz` the input file will be overwritten!
+
+After annotating a column the script prints info on the missing values.
 

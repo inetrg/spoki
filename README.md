@@ -9,20 +9,23 @@ Proc. of 31st USENIX Security Symposium, 2022, Berkeley, CA, USA.
 ```
 
 
-
 ## Structure
 
 We included two parts in this artifact:
+
 1. *Spoki*, a reactive telescope,
-2. A *malware* tool chain to find links to executables in payloads.
+2. A subset of the *evaluation* tools we used for the paper.
+  - Includes the *malware* tool chain to find links to executables in payloads.
+
+Please check the respective README files for details.
 
 ### Spoki
 
 Located in the folder `spoki` is a C++ program that listens on data source (such as an interface) for incoming packets. It answers SYNs to establish TCP connections and collects the payloads.
 
-### Malware Collection
+## Evaluation
 
-Located in the folder "malware" is a set of python programs that process the Spoki logs to reassemble handshakes and identify payloads that contain downloaders. Additionally, this folder contains a small test program that can be run on a separate host to perform a two-phase handshake with Spoki.
+Located in the folder "evaluation" is a set of python programs that process the Spoki logs to reassemble handshakes and perform some analysis. This includes the *malware tool chain* to identify payloads that contain downloaders. Additionally, this folder contains a small test program that can be run on a separate host to perform a two-phase handshake with Spoki.
 
 ### Scripts
 
@@ -37,14 +40,14 @@ Spoki and the its tools create new data. We suggest using the following folder s
 ./
   logs       # unused
     example  # example logs
-  malware    # malware processing tools
+  evaluation # tools that process Spoki's logs
     data     # unused
   README.md  # this readme
   scripts    # helpful scripts
   spoki      # spoki's code
 ```
 
-So far the folders `logs` and `malware/data` are empty. The first one can be used to collect Spoki logs and the second one to collect the malware data.
+So far the folders `logs` and `evaluation/data` are empty. The first one can be used to collect Spoki logs and the second one to collect the malware data.
 
 ### Requirements
 
@@ -71,7 +74,7 @@ A complete setup consists of Spoki and four python programs that process its log
 2. Configure Spoki.
 3. Run Spoki.
 4. Run Zookeeper & Kafka.
-6. Setup malware project.
+6. Setup evaluation project.
 7. Run the four malware processes.
 8. Probe Spoki.
 
@@ -82,7 +85,7 @@ The python tools can be set up before Spoki as well. There are no direct depende
 
 The complete setup requires running multiple processes in parallel. We suggest using `screen` or `tmux` to keep an overview.
 
-### Building Spoki
+### 1. Building Spoki
 
 Please check the Spoki `README.md` file for details. On Ubuntu 20.04 the following should work:
 
@@ -93,7 +96,7 @@ $ ./configure
 $ make -C build
 ```
 
-### Configuring Spoki
+### 2. Configuring Spoki
 
 Spoki reads a `caf-application.conf` file from the directory it runs in (see `--long-help` on how to select a specific file). The `spoki` folder includes an example configuration file. You will need to adjust the `uri` to match your local setup, likely the interface to read data from, e.g., `int:eth0`.
 
@@ -107,7 +110,7 @@ To run Spoki as a non-root user (recommended) you can give it the capabilities t
 $ sudo setcap cap_net_raw,cap_net_admin=eip ./build/tools/spoki
 ```
 
-### Running Spoki
+### 3. Running Spoki
 
 Now, this should be as simple as `./build/tools/spoki` (executed in the `spoki` folder). Spoki prints a bit of configuration output. Thereafter it prints the following stats every second: *requests per second* (rps), *probes per second* (pps, rounded to 100), and a *queue size* (pending probes). When run on a single address pps mostly stays at 0 while rps should show occasional packets.
 
@@ -116,7 +119,7 @@ Information about buffer rotations interleave this output. The buffer sizes can 
 **NOTE** If you probe Spoki you should block outgoing RST,ACK packets, e.g., via `iptables`. The folder `scripts` has two scripts to "disable" and "enable" these outgoing packets.
 
 
-### Running Zookeeper & Kafka
+### 4. Running Zookeeper & Kafka
 
 The [quick start](https://kafka.apache.org/quickstart) guide suggest to run Kafka as follows. If you have an existing setup, feel free to use it.
 
@@ -134,9 +137,9 @@ $ bin/kafka-server-start.sh config/server.properties
 *Note:* These are java tools. On Ubuntu 20.04 java can be installed as follows: `sudo apt install openjdk-11-jdk`.
 
 
-### Setup the Malware Identification Tools
+### 6. Setup Evaluation Project
 
-This is best done inside the `malware` folder. Since there are a few dependencies, we use a virtual environment for the setup. The required module can be install as follows on Ubuntu 20-.4: `sudo apt install python3.8-venv`. Then, you can setup the project as follows:
+This is best done inside the `evaluation` folder. Since there are a few dependencies, we use a virtual environment for the setup. The required module can be install as follows on Ubuntu 20-.4: `sudo apt install python3.8-venv`. Then, you can setup the project as follows:
 
 ```
 $ # Setup a virtual environment.
@@ -148,7 +151,7 @@ $ # You will have run this twice because the first run only install pip-tools.
 $ make update
 ```
 
-### Running the Malware Tools
+### 7. Running the Malware Tools
 
 There are four tools:
 1. `assemble` reads Spoki logs and assembles handshakes and phases.
@@ -180,7 +183,7 @@ $ download -c test
 The script `reset-topics -d test` resets the data in the local Kafka instance for the tag `test`.
 
 
-### Testing: Probing Spoki and the Malware Tools
+### 8. Testing: Probing Spoki and the Malware Tools
 
 The malware tools contain an additional script to probe Spoki with a two-phase event: `test-spoki`. It uses scapy to craft packets and simulate an interaction. You can run it from a separate host and probe the interface Spoki is listening on. The only required argument for `test-spoki` is the target host as a positional argument, although the port can be configured using `--port`.
 
@@ -205,4 +208,8 @@ $ assemble -s 2021-10-13 -H 21 -d test --kafka --csv ../logs/example
 `clean` should print a single line with the tool (wget), url (http://141.22.28.35/evil), hoster (141.22.28.35), and port (80). `download` will create a new `activity` folder with a log file for this malware name (`evil.2021.10.csv.gz`) that list the download attempt. If the download was successful, a directory `malware` will contain a folder named after the download hash that contains the download (`malware.bin`) and a compressed log file.
 
 **Note** The download part accesses a file on my work computer. It get's multiple request from different IPs each day. I don't check the logs to see where from. Please let me know if I should disable it.
+
+## More Tools
+
+For more tools, please check the `README.md` in `evaluation`.
 
