@@ -30,7 +30,7 @@ WANDIO_URL=https://github.com/wanduow/wandio/archive/$WANDIO_TAR
 
 # curl -O https://research.wand.net.nz/software/libtrace/libtrace-latest.tar.bz2
 LIBTRACE_FOLDER=libtrace-4.0.17
-LIBTRACE_TAR=libtrace-latest.tar.bz2
+LIBTRACE_TAR=$LIBTRACE_FOLDER.tar.bz2
 LIBTRACE_URL=https://research.wand.net.nz/software/libtrace/$LIBTRACE_TAR
 # tar xjf
 
