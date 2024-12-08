@@ -12,26 +12,26 @@ SCAMPER_FOLDER=scamper-cvs-20200923
 SCAMPER_TAR=$SCAMPER_FOLDER.tar.gz
 SCAMPER_URL=https://www.caida.org/tools/measurement/scamper/code/$SCAMPER_TAR
 
-ZLIB_FOLDER=zlib-1.2.11
+ZLIB_FOLDER=zlib-1.2.13
 ZLIB_TAR=$ZLIB_FOLDER.tar.gz
 ZLIB_URL=https://www.zlib.net/$ZLIB_TAR
 
-# WANDIO_FOLDER=wandio-4.2.3
-# WANDIO_TAR=$WANDIO_FOLDER.tar.gz
-# WANDIO_URL=https://research.wand.net.nz/software/wandio/$WANDIO_TAR
-WANDIO_FOLDER=4.2.3-1
+# https://github.com/LibtraceTeam/wandio/archive/refs/tags/4.2.4-1.tar.gz
+WANDIO_VERSION=4.2.6-1
+WANDIO_FOLDER=$WANDIO_VERSION
 WANDIO_TAR=$WANDIO_FOLDER.tar.gz
-WANDIO_URL=https://github.com/wanduow/wandio/archive/$WANDIO_TAR
+WANDIO_URL=https://github.com/LibtraceTeam/wandio/archive/refs/tags/$WANDIO_TAR
 
 #LIBTRACE_VERSION=4.0.9
 #LIBTRACE_FOLDER=libtrace-$VERSION
 #LIBTRACE_TAR=$VERSION.tar.gz
 #LIBTRACE_URL=https://github.com/LibtraceTeam/libtrace/archive/$LIBTRACE_TAR
 
-# curl -O https://research.wand.net.nz/software/libtrace/libtrace-latest.tar.bz2
-LIBTRACE_FOLDER=libtrace-4.0.17
-LIBTRACE_TAR=$LIBTRACE_FOLDER.tar.bz2
-LIBTRACE_URL=https://research.wand.net.nz/software/libtrace/$LIBTRACE_TAR
+# https://github.com/LibtraceTeam/libtrace/archive/refs/tags/4.0.20-1.tar.gz
+LIBTRACE_VERSION=4.0.26-1
+LIBTRACE_FOLDER=$LIBTRACE_VERSION
+LIBTRACE_TAR=$LIBTRACE_FOLDER.tar.gz
+LIBTRACE_URL=https://github.com/LibtraceTeam/libtrace/archive/refs/tags/$LIBTRACE_TAR
 # tar xjf
 
 NLOHMAN_JSON_TAG=v3.9.1
@@ -148,12 +148,13 @@ then
   echo "libtrace already cloned"
 else
   cd $ROOT_DIR
-  curl -L -O $LIBTRACE_URL
-  tar xjf $LIBTRACE_TAR
-  mv $LIBTRACE_FOLDER libtrace
-  rm $LIBTRACE_TAR
+	curl -L -O $LIBTRACE_URL
+	tar xzf $LIBTRACE_TAR
+	mv libtrace-$LIBTRACE_FOLDER libtrace
+	rm $LIBTRACE_TAR
 fi
 cd $ROOT_DIR/libtrace
+./bootstrap.sh
 CPPFLAGS=-I$ROOT_DIR/deps/include/ LDFLAGS=-L$ROOT_DIR/deps/lib/ ./configure --prefix=${INSTALL_PREFIX}
 CPPFLAGS=-I$ROOT_DIR/deps/include/ LDFLAGS=-L$ROOT_DIR/deps/lib/ make
 CPPFLAGS=-I$ROOT_DIR/deps/include/ LDFLAGS=-L$ROOT_DIR/deps/lib/ make install
